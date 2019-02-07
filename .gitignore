@@ -103,3 +103,18 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# examples dir
+examples
+
+#viminfo
+.viminfo
+
+#.ipython
+.ipython
+
+#.local
+.local
+
+#.keras
+.keras

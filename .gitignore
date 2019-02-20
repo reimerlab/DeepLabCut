@@ -106,6 +106,7 @@ ENV/
 
 # examples dir
 examples
+examples/*
 
 #viminfo
 .viminfo
@@ -118,3 +119,9 @@ examples
 
 #.keras
 .keras
+
+#.yaml
+*.yaml
+
+#.imageio
+.imageio

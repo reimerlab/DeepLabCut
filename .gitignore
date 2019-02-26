@@ -125,3 +125,18 @@ examples/*
 
 #.imageio
 .imageio
+
+# pupil_track
+pupil_track-Donnie-2019-02-12
+
+# .avi
+*.avi
+
+#.mp4
+*.mp4
+
+#.pickle
+*.pickle
+
+# h5
+*.h5

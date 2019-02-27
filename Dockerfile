@@ -51,6 +51,9 @@ RUN sudo apt-get install -y libgtk2.0-dev libgtk-3-dev \
     libnotify-dev freeglut3 freeglut3-dev libsm-dev \
     libwebkitgtk-dev libwebkitgtk-3.0-dev
 
+# Install plotly for plotting interactive plotting in jupyter
+RUN pip install plotly 
+
 WORKDIR /work
 CMD ["/bin/bash"]
 

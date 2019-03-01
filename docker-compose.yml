@@ -12,6 +12,7 @@ services:
         #      - $HOME/Documents/pipeline/:/data/pipeline/
         #      - .:/data/DeepLabCut
       - /home/donnie/Documents/Repos/DeepLabCut:/work/
+      - /home/donnie/Documents/Repos/DLC_tool_DK:/work/
     env_file: .env
     working_dir: /work/
     environment:
@@ -34,6 +35,8 @@ services:
         #      - $HOME/Documents/pipeline/:/data/pipeline/
         #      - .:/data/DeepLabCut
       - /home/donnie/Documents/Repos/DeepLabCut:/work/
+      - /home/donnie/Documents/Repos/DLC_tool_DK:/work/
+    env_file: .env
       - /etc/localtime:/etc/localtime:ro
       - /tmp/.X11-unix:/tmp/.X11-unix
     environment:

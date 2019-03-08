@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import os
 import numpy as np
 import time
+import imageio
 
 from deeplabcut.utils import auxiliaryfunctions
 from deeplabcut.utils.plotting import get_cmap
@@ -19,6 +20,7 @@ from deeplabcut.utils.video_processor import VideoProcessorCV as vp
 import pylab as pl
 from IPython import display
 
+
 def get_frame(path_to_video, frame_num):
     cap = cv2.VideoCapture(path_to_video)
     cap.open(path_to_video)
@@ -28,30 +30,88 @@ def get_frame(path_to_video, frame_num):
     return img
 
 
-def df_part_generator(df_original, scorer, parts):
+def make_gif(case, start_frame_num, num_frame):
+    save_dir = os.path.join(mother_dir, 'analysis', case+'_beh', case+'.gif')
 
-    df_part = df_original[scorer][parts]
-    nframes = df_part.shape[0]
-    df_part_likelihood = np.empty((len(parts), nframes))
-    df_part_x = np.empty((len(parts), nframes))
-    df_part_y = np.empty((len(parts), nframes))
-    for bpindex, bp in enumerate(parts):
-        df_part_likelihood[bpindex,:] = df_original[scorer][bp]['likelihood'].values
-        df_part_x[bpindex, :] = df_original[scorer][bp]['x'].values
-        df_part_y[bpindex, :] = df_original[scorer][bp]['y'].values
-    
-    return df_part, df_part_likelihood, df_part_x, df_part_y
+    fig = plt.figure.Figure()
+    plt_list = []
+
+    for i in range(start_frame_num, start_frame_num + num_frame):
+        plot = plot_over_frames(config_path,
+                                case,
+                                bodyparts2plot=all_parts,
+                                starting=i,
+                                end=i+1,
+                                save_fig=False,
+                                save_gif=True)
+        plt_list.append(plot)
+    imageio.mimsave(save_dir, plt_list, fps=1)
 
 
-def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffle=1, save_fig=False, save_gif=False):
-    #TODO change it such that it only plots one frame
+def bodyparts_info(path_to_config, case, bodyparts, trainingsetindex=0, shuffle=1):
+    """
+    Given bodyparts, return corresponding likelihood, x, and y
+    """
     case_full_name = case + '_beh'
 
     config = auxiliaryfunctions.read_config(path_to_config)
 
     project_path = config['project_path']
-    path_to_video = os.path.join(project_path, 'videos', case_full_name + '.avi')
-    label_path = os.path.join(project_path, 'analysis', case_full_name )
+    label_path = os.path.join(project_path, 'analysis', case_full_name)
+
+    trainFraction = config['TrainingFraction'][trainingsetindex]
+    DLCscorer = auxiliaryfunctions.GetScorerName(
+        config, shuffle, trainFraction)
+
+    df_label = pd.read_hdf(os.path.join(
+        label_path, case_full_name + DLCscorer + '.h5'))
+
+    df_bodyparts = df_label[DLCscorer][bodyparts]
+    nframes = df_bodyparts.shape[0]
+
+    df_bodyparts_likelihood = np.empty((len(bodyparts), nframes))
+    df_bodyparts_x = np.empty((len(bodyparts), nframes))
+    df_bodyparts_y = np.empty((len(bodyparts), nframes))
+
+    for bpindex, bp in enumerate(bodyparts):
+        df_bodyparts_likelihood[bpindex,
+                                :] = df_label[DLCscorer][bp]['likelihood'].values
+        df_bodyparts_x[bpindex, :] = df_label[DLCscorer][bp]['x'].values
+        df_bodyparts_y[bpindex, :] = df_label[DLCscorer][bp]['y'].values
+
+    return df_bodyparts, df_bodyparts_likelihood, df_bodyparts_x, df_bodyparts_y
+
+class PlotBodyparts():
+    
+    def __init__(self, path_to_config, case, bodyparts, shuffle = 1, trainingsetindex=0):
+        
+        self.config = auxiliaryfunctions.read_config(path_to_config)
+        self.project_path = self.config['project_path']
+        self.case = case      
+        self.shuffle = shuffle
+        self.trainingsetindex = trainingsetindex
+
+        _DLCscorer = auxiliaryfunctions.GetScorerName(config, shuffle, trainFraction)
+        _case_fullname = case + '_beh'
+
+    def plot_one_frame(self, save_as_fig):
+        pass
+
+    def plot_over_frames(self, start, end, save_as_fig=False, save_as_gif=True):
+        pass
+    
+
+
+def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffle=1, save_fig=False, save_gif=False):
+    # TODO change it such that it only plots one frame
+    case_full_name = case + '_beh'
+
+    config = auxiliaryfunctions.read_config(path_to_config)
+
+    project_path = config['project_path']
+    path_to_video = os.path.join(
+        project_path, 'videos', case_full_name + '.avi')
+    label_path = os.path.join(project_path, 'analysis', case_full_name)
 
     pcutoff = config['pcutoff']
     cropping = config['cropping']
@@ -95,7 +155,7 @@ def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffl
             image = image[y1:y2, x1:x2]
         else:
             pass
-        fig = plt.figure(frameon=False, figsize=(12,8))
+        fig = plt.figure(frameon=False, figsize=(12, 8))
         # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
         plt.subplots_adjust(left=0, bottom=0, right=1,
                             top=1, wspace=0, hspace=0)
@@ -132,18 +192,18 @@ def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffl
 
     if save_fig:
         plt.tight_layout()
-        plt.savefig(os.path.join(label_path,'frame_' + str(starting) + '.png'))
+        plt.savefig(os.path.join(
+            label_path, 'frame_' + str(starting) + '.png'))
 
     if save_gif:
         fig.canvas.draw()
         image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-        image  = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
         plt.close('all')
         return image
 
     plt.close('all')
     return fig
-    
 
 
 def fit_pupil_over_frames(df_all_part, scorer, path_to_video, bodyparts2plot, starting, end, save_as_movie=False):
@@ -216,7 +276,9 @@ def fit_pupil_over_frames(df_all_part, scorer, path_to_video, bodyparts2plot, st
 
     if save_as_movie:
         plt.tight_layout()
-        print("image name is {}".format(label_path,'frame_' + str(starting) + '.png'))
-        plt.savefig(os.path.join(label_path,'frame_' + str(starting) + '.png'))
+        print("image name is {}".format(
+            label_path, 'frame_' + str(starting) + '.png'))
+        plt.savefig(os.path.join(
+            label_path, 'frame_' + str(starting) + '.png'))
 
     plt.close('all')

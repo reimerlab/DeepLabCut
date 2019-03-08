@@ -54,6 +54,9 @@ RUN sudo apt-get install -y libgtk2.0-dev libgtk-3-dev \
 # Install plotly for plotting interactive plotting in jupyter
 RUN pip install plotly 
 
+# Install datajoint
+RUN pip install datajoint
+
 WORKDIR /work
 CMD ["/bin/bash"]
 

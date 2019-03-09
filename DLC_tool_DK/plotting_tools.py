@@ -48,13 +48,11 @@ def make_gif(case, start_frame_num, num_frame):
     imageio.mimsave(save_dir, plt_list, fps=1)
 
 
-def bodyparts_info(path_to_config, case, bodyparts, trainingsetindex=0, shuffle=1):
+def bodyparts_info(config, case, bodyparts, trainingsetindex=0, shuffle=1):
     """
-    Given bodyparts, return corresponding likelihood, x, and y
+    Given bodyparts, return corresponding likelihood, x-coordinates, and y-coordinates
     """
     case_full_name = case + '_beh'
-
-    config = auxiliaryfunctions.read_config(path_to_config)
 
     project_path = config['project_path']
     label_path = os.path.join(project_path, 'analysis', case_full_name)
@@ -79,27 +77,201 @@ def bodyparts_info(path_to_config, case, bodyparts, trainingsetindex=0, shuffle=
         df_bodyparts_x[bpindex, :] = df_label[DLCscorer][bp]['x'].values
         df_bodyparts_y[bpindex, :] = df_label[DLCscorer][bp]['y'].values
 
-    return df_bodyparts, df_bodyparts_likelihood, df_bodyparts_x, df_bodyparts_y
+    return df_bodyparts_likelihood, df_bodyparts_x, df_bodyparts_y
+
 
 class PlotBodyparts():
-    
-    def __init__(self, path_to_config, case, bodyparts, shuffle = 1, trainingsetindex=0):
-        
+
+    def __init__(self, path_to_config, case, bodyparts, trainingsetindex=0, shuffle=1):
+        """
+        Input:
+            path_to_config: string
+                fullpath to config.yaml file
+            case: string
+                case number to plot
+            bodyparts: list
+                A list that contains bodyparts to plot. Each bodypart is in a string format
+            shuffle: int, optional
+                Integer value specifying the shuffle index to select for training. Default is set to 1
+            trainingsetindex: int, optional
+                Integer specifying which TrainingsetFraction to use.
+                By default the first (note that TrainingFraction is a list in config.yaml).
+
+        """
         self.config = auxiliaryfunctions.read_config(path_to_config)
-        self.project_path = self.config['project_path']
-        self.case = case      
+        self.case = case
+        self.bodyparts = bodyparts
         self.shuffle = shuffle
         self.trainingsetindex = trainingsetindex
 
-        _DLCscorer = auxiliaryfunctions.GetScorerName(config, shuffle, trainFraction)
-        _case_fullname = case + '_beh'
+        (self.df_bodyparts_likelihood, self.df_bodyparts_x, self.df_bodyparts_y) = bodyparts_info(config=self.config,
+                                                                                                  case=self.case,
+                                                                                                  bodyparts=self.bodyparts,
+                                                                                                  trainingsetindex=self.trainingsetindex,
+                                                                                                  shuffle=self.shuffle)
+        case_full_name = case + '_beh'
+        project_path = self.config['project_path']
+        path_to_video = os.path.join(
+            project_path, 'videos', case_full_name + '.avi')
+        self.label_path = os.path.join(
+            project_path, 'analysis', case_full_name)
+        self.clip = vp(fname=path_to_video)
 
-    def plot_one_frame(self, save_as_fig):
+        # plotting properties
+        self._dotsize = 5  # manually change here so that they stand out when plotting
+        self._pcutoff = self.config['pcutoff']
+        self._colormap = self.config['colormap']
+        self._label_colors = get_cmap(len(bodyparts), name=self._colormap)
+        self._alphavalue = self.config['alphavalue']
+        self._cropping = self.config['cropping']
+        if self._cropping:
+            self._cropping_coords = [
+                self.config['x1'], self.config['x2'], self.config['y1'], self.config['y2']]
+        else:
+            self._cropping_coords = [
+                0, self.clip.width(), 0, self.clip.height()]
+        self.nx = self._cropping_coords[1] - self._cropping_coords[0]
+        self.ny = self._cropping_coords[3] - self._cropping_coords[2]
+
+    @property
+    def dotsize(self):
+        return self._dotsize
+
+    @dotsize.setter
+    def dotsize(self, value):
+        self._dotsize = value
+
+    @property
+    def pcutoff(self):
+        return self._pcutoff
+
+    @pcutoff.setter
+    def pcutoff(self, value):
+        self._pcutoff = value
+
+    @property
+    def colormap(self):
+        return self._colormap
+
+    @colormap.setter
+    def colormap(self, value):
+        if isinstance(value, str):
+            self._colormap = value
+            self._label_colors = get_cmap(
+                len(self.bodyparts), name=self._colormap)
+        else:
+            raise TypeError("colormap must be in string format")
+
+    @property
+    def alphavalue(self):
+        return self._alphavalue
+
+    @alphavalue.setter
+    def alphavalue(self, value):
+        self._alphavalue = value
+
+    # Need to refactorize this portion of the code
+    @property
+    def cropping(self):
+        return self._cropping
+
+    @cropping.setter
+    def cropping(self, value):
+        if isinstance(value, bool):
+            self._cropping = value
+            if self._cropping:  # TODO if true, prompt cropping tool box and update cropping_coords
+                pass
+            else:  # restore cropping coords to the original frame size
+                self._cropping_coords = list(
+                    0, self.clip.width(), 0, self.clip.height())
+        else:
+            raise TypeError("cropping must be a boolean")
+
+    @property
+    def cropping_coords(self):
+        return self._cropping_coords
+
+    # we need to link with cropping tool
+    @cropping_coords.setter
+    def cropping_coords(self, value):
+        if self._cropping:
+            if ~isinstance(value, list):
+                raise TypeError("coordinates must be a list")
+            elif len(value) != 4:
+                raise ValueError("length of the coordinates must be 4")
+            self._cropping_coords = value
+        else:
+            print("Cropping is set to False! You cannot reset the cropping coordinates. Default value at original frame size")
+
+    def plot_one_frame(self, frame_num, fit_pupil=False, save_fig=False):
+
+        plt.axis('off')
+        fig = plt.figure(frameon=False, figsize=(12, 8))
+        # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
+        plt.subplots_adjust(left=0, bottom=0, right=1,
+                            top=1, wspace=0, hspace=0)
+
+        image = self.clip._read_specific_frame(frame_num)
+
+        if self._cropping:
+            
+            x1 = self._cropping_coords[0]
+            x2 = self._cropping_coords[1]            
+            y1 = self._cropping_coords[2]
+            y2 = self._cropping_coords[3]
+            
+            image = image[y1:y2, x1:x2]
+
+        plt.imshow(image)
+
+        for bpindex, bp in enumerate(self.bodyparts):
+            if self.df_bodyparts_likelihood[bpindex, frame_num] > self.pcutoff:
+                plt.scatter(
+                    self.df_bodyparts_x[bpindex, frame_num],
+                    self.df_bodyparts_y[bpindex, frame_num],
+                    s=self.dotsize**2,
+                    color=self._label_colors(bpindex),
+                    alpha=self.alphavalue
+                )
+
+        plt.xlim(0, self.nx)
+        plt.ylim(0, self.ny)
+        plt.axis('off')
+        plt.subplots_adjust(
+            left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+        plt.gca().invert_yaxis()
+        plt.title('frame num: ' + str(frame_num), fontsize=30)
+
+        sm = plt.cm.ScalarMappable(cmap=self._label_colors, norm=plt.Normalize(
+            vmin=-0.5, vmax=len(self.bodyparts)-0.5))
+        sm._A = []
+        cbar = plt.colorbar(sm, ticks=range(len(self.bodyparts)))
+        cbar.set_ticklabels(self.bodyparts)
+        cbar.ax.tick_params(labelsize=20)
+
+        display.clear_output(wait=True)
+        display.display(pl.gcf())
+        time.sleep(1.0)
+
+        if save_fig:
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                self.label_path, 'frame_' + str(frame_num) + '.png'))
+
+        plt.close('all')
+        return fig
+
+    def plot_over_frames(self, start, end, save_fig=False):
         pass
 
-    def plot_over_frames(self, start, end, save_as_fig=False, save_as_gif=True):
+    def make_gif(self, start, num_frames):
         pass
-    
+
+
+class FitPupil():
+
+    def __init__(self, *args, **kwargs):
+        super(PlotBodyparts, self).__init__(*args, **kwargs)
 
 
 def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffle=1, save_fig=False, save_gif=False):
@@ -113,19 +285,10 @@ def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffl
         project_path, 'videos', case_full_name + '.avi')
     label_path = os.path.join(project_path, 'analysis', case_full_name)
 
-    pcutoff = config['pcutoff']
-    cropping = config['cropping']
-    colormap = config['colormap']
     trainingsetindex = 0  # modify here as needed
     trainFraction = config['TrainingFraction'][trainingsetindex]
     DLCscorer = auxiliaryfunctions.GetScorerName(
         config, shuffle, trainFraction)
-
-    # dotsize = config["dotsize"]
-    dotsize = 5  # manually change here so that they stand out when plotting
-
-    colormap = config["colormap"]
-    alphavalue = config["alphavalue"]
 
     # obtain video
     clip = vp(fname=path_to_video)
@@ -138,7 +301,7 @@ def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffl
                                                                           scorer=DLCscorer,
                                                                           parts=bodyparts2plot)
     colors = get_cmap(len(bodyparts2plot), name=colormap)
-    #colors_dict = dict(zip(pupil_parts, [colors(i) for i in range(colors.N)]))
+    # colors_dict = dict(zip(pupil_parts, [colors(i) for i in range(colors.N)]))
 
     if config['cropping']:
         [x1, x2, y1, y2] = config['x1'], config['x2'], config['y1'], config['y2']

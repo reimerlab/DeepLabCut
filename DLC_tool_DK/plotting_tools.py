@@ -203,7 +203,7 @@ class PlotBodyparts():
         else:
             print("Cropping is set to False! You cannot reset the cropping coordinates. Default value at original frame size")
 
-    def plot_one_frame(self, frame_num, fit_pupil=False, save_fig=False):
+    def plot_one_frame(self, frame_num, fit_pupil=False, save_fig=False, save_gif=False):
 
         plt.axis('off')
         fig = plt.figure(frameon=False, figsize=(12, 8))
@@ -214,12 +214,12 @@ class PlotBodyparts():
         image = self.clip._read_specific_frame(frame_num)
 
         if self._cropping:
-            
+
             x1 = self._cropping_coords[0]
-            x2 = self._cropping_coords[1]            
+            x2 = self._cropping_coords[1]
             y1 = self._cropping_coords[2]
             y2 = self._cropping_coords[3]
-            
+
             image = image[y1:y2, x1:x2]
 
         plt.imshow(image)
@@ -258,15 +258,34 @@ class PlotBodyparts():
             plt.savefig(os.path.join(
                 self.label_path, 'frame_' + str(frame_num) + '.png'))
 
+        if save_gif:
+            fig.canvas.draw()
+            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            plt.close('all')
+            return image
+
         plt.close('all')
         return fig
 
     def plot_over_frames(self, start, end, save_fig=False):
-        pass
 
-    def make_gif(self, start, num_frames):
-        pass
+        for i in range(start, end):
+            self.plot_one_frame(i, save_fig=save_fig)
 
+    def make_gif(self, start, num_frames, save_gif=True):
+        gif_name = self.case + '_' + \
+            str(start) + '_' + str(start+num_frames) + '.gif'
+        save_dir = os.path.join(
+            self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
+        
+        fig = plt.figure(frameon=False, figsize=(12,8))
+        plt_list = []
+
+        for i in range(start, start + num_frames):
+            plot = self.plot_one_frame(frame_num=i, save_gif=True)
+            plt_list.append(plot)
+        imageio.mimsave(save_dir, plt_list, fps=1)
 
 class FitPupil():
 

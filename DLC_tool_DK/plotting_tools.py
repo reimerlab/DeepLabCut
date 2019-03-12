@@ -10,6 +10,8 @@ import os
 import numpy as np
 import time
 import imageio
+from collections import OrderedDict
+from itertools import cycle
 
 from deeplabcut.utils import auxiliaryfunctions
 from deeplabcut.utils.plotting import get_cmap
@@ -203,7 +205,7 @@ class PlotBodyparts():
         else:
             print("Cropping is set to False! You cannot reset the cropping coordinates. Default value at original frame size")
 
-    def plot_one_frame(self, frame_num, fit_pupil=False, save_fig=False, save_gif=False):
+    def plot_one_frame(self, frame_num, save_fig=False, save_gif=False):
 
         plt.axis('off')
         fig = plt.figure(frameon=False, figsize=(12, 8))
@@ -287,10 +289,105 @@ class PlotBodyparts():
             plt_list.append(plot)
         imageio.mimsave(save_dir, plt_list, fps=1)
 
-class FitPupil():
+class PupilFitting(PlotBodyparts):
 
-    def __init__(self, *args, **kwargs):
-        super(PlotBodyparts, self).__init__(*args, **kwargs)
+    def __init__(self, path_to_config, case, bodyparts, trainingsetindex=0, shuffle=1):
+        super().__init__(path_to_config, case, bodyparts, trainingsetindex=0, shuffle=1)
+
+        self.pupil_parts = [part for part in bodyparts if part.startswith('pupil')]
+        self.eyelid_parts = [part for part in bodyparts if part.startswith('eyelid')]
+    
+    def old_plot_fitted_frame(self, frame_num, save_fig=False, save_gif=False):
+        pass
+
+    def plot_fitted_frame(self, frame_num, save_fig=False, save_gif=False):
+
+        plt.axis('off')
+        fig = plt.figure(frameon=False, figsize=(12, 8))
+        # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
+        plt.subplots_adjust(left=0, bottom=0, right=1,
+                            top=1, wspace=0, hspace=0)
+
+        image = self.clip._read_specific_frame(frame_num)
+
+        if self._cropping:
+
+            x1 = self._cropping_coords[0]
+            x2 = self._cropping_coords[1]
+            y1 = self._cropping_coords[2]
+            y2 = self._cropping_coords[3]
+
+            image = image[y1:y2, x1:x2]
+
+        pupil_coords = []
+        eyelid_dict = OrderedDict()
+
+        for bpindex, bp in enumerate(self.bodyparts):
+            if self.df_bodyparts_likelihood[bpindex, frame_num] > self.pcutoff:
+                plt.scatter(
+                    self.df_bodyparts_x[bpindex, frame_num],
+                    self.df_bodyparts_y[bpindex, frame_num],
+                    s=self.dotsize**2,
+                    color=self._label_colors(bpindex),
+                    alpha=self.alphavalue
+                )
+                if bp in self.pupil_parts:
+                    pupil_coords.append(
+                        [self.df_bodyparts_x[bpindex, frame_num], self.df_bodyparts_y[bpindex, frame_num]])
+                
+                if bp in self.eyelid_parts:
+                    eyelid_dict[bp] = [[self.df_bodyparts_x[bpindex, frame_num], self.df_bodyparts_y[bpindex, frame_num]]]
+
+        if len(pupil_coords) >= 3:
+            pupil_coords = np.array(pupil_coords).reshape(-1, 1, 2).astype(int)
+            (x, y), radius = cv2.minEnclosingCircle(pupil_coords)
+            center = (int(x), int(y))
+            radius = int(radius)
+            # opencv has some issues with dealing with np objects. Cast it manually again
+            frame = cv2.circle(np.array(image), center, radius, (0, 255, 0), thickness=1)
+
+        for bp in s
+        
+
+        
+        
+        plt.imshow(frame)
+
+        plt.xlim(0, self.nx)
+        plt.ylim(0, self.ny)
+        plt.axis('off')
+        plt.subplots_adjust(
+            left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+        plt.gca().invert_yaxis()
+        plt.title('frame num: ' + str(frame_num), fontsize=30)
+
+        sm = plt.cm.ScalarMappable(cmap=self._label_colors, norm=plt.Normalize(
+            vmin=-0.5, vmax=len(self.bodyparts)-0.5))
+        sm._A = []
+        cbar = plt.colorbar(sm, ticks=range(len(self.bodyparts)))
+        cbar.set_ticklabels(self.bodyparts)
+        cbar.ax.tick_params(labelsize=20)
+
+        display.clear_output(wait=True)
+        display.display(pl.gcf())
+        time.sleep(1.0)
+
+        if save_fig:
+            plt.tight_layout()
+            plt.savefig(os.path.join(
+                self.label_path, 'frame_' + str(frame_num) + '.png'))
+
+        if save_gif:
+            fig.canvas.draw()
+            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            plt.close('all')
+            return image
+
+        plt.close('all')
+        return fig
+        
+
 
 
 def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffle=1, save_fig=False, save_gif=False):
@@ -389,78 +486,79 @@ def plot_over_frames(path_to_config, case, bodyparts2plot, starting, end, shuffl
 
 
 def fit_pupil_over_frames(df_all_part, scorer, path_to_video, bodyparts2plot, starting, end, save_as_movie=False):
+    pass
 
-    df_part, df_part_likelihood, df_part_x, df_part_y = df_part_generator(df_original,
-                                                                          scorer,
-                                                                          bodyparts2plot)
-    colors = get_cmap(len(bodyparts2plot), name=colormap)
+    # df_part, df_part_likelihood, df_part_x, df_part_y = df_part_generator(df_original,
+    #                       environme                                     scorer,
+    #                       environme                                     bodyparts2plot)
+    # colors = get_cmap(len(environmelot), name=colormap)
 
-    if config['cropping']:
-        [x1, x2, y1, y2] = config['x1'], config['x2'], config['y1'], config['y2']
-        ny, nx = y2-y1, x2-x1
-    else:
-        [x1, x2, y1, y2] = 0, clip.height(), 0, clip.width()
-        ny, nx = clip.height(), clip.width()
+#     if config['cropping']:environme
+#         [x1, x2, y1, y2] = config['x1'], config['x2'], config['y1'], config['y2']
+#         ny, nx = y2-y1, x2-x1
+#     else:
+#         [x1, x2, y1, y2] = 0, clip.height(), 0, clip.width()
+#         ny, nx = clip.height(), clip.width()
 
-    for index in range(starting, end):
+#     for index in range(starting, end):
 
-        frame = get_frame(path_to_video, frame_num=index)
-        plt.figure(frameon=False, figsize=(12, 6))
-#         plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
-        plt.subplots_adjust(left=0, bottom=0, right=1,
-                            top=1, wspace=0, hspace=0)
+#         frame = get_frame(path_to_video, frame_num=index)
+#         plt.figure(frameon=False, figsize=(12, 6))
+# #         plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
+#         plt.subplots_adjust(left=0, bottom=0, right=1,
+#                             top=1, wspace=0, hspace=0)
 
-        pupil_coords = []
-        for bpindex, bp in enumerate(bodyparts2plot):
-            if df_part_likelihood[bpindex, index] > pcutoff:
-                plt.scatter(
-                    df_part_x[bpindex, index]-x1,
-                    df_part_y[bpindex, index]-y1,
-                    s=dotsize**2,
-                    color=colors(bpindex),
-                    alpha=alphavalue
-                )
-                if bp in pupil_parts:
-                    pupil_coords.append(
-                        [df_part_x[bpindex, index], df_part_y[bpindex, index]])
+#         pupil_coords = []
+#         for bpindex, bp in enumerate(bodyparts2plot):
+#             if df_part_likelihood[bpindex, index] > pcutoff:
+#                 plt.scatter(
+#                     df_part_x[bpindex, index]-x1,
+#                     df_part_y[bpindex, index]-y1,
+#                     s=dotsize**2,
+#                     color=colors(bpindex),
+#                     alpha=alphavalue
+#                 )
+#                 if bp in pupil_parts:
+#                     pupil_coords.append(
+#                         [df_part_x[bpindex, index], df_part_y[bpindex, index]])
 
-        if len(pupil_coords) >= 3:
-            pupil_coords = np.array(pupil_coords).reshape(-1, 1, 2).astype(int)
-            (x, y), radius = cv2.minEnclosingCircle(pupil_coords)
-            center = (int(x), int(y))
-            radius = int(radius)
-            frame = cv2.circle(frame, center, radius, (0, 255, 0), thickness=1)
+#         if len(pupil_coords) >= 3:
+#             pupil_coords = np.array(pupil_coords).reshape(-1, 1, 2).astype(int)
+#             (x, y), radius = cv2.minEnclosingCircle(pupil_coords)
+#             center = (int(x), int(y))
+#             radius = int(radius)
+#             frame = cv2.circle(frame, center, radius, (0, 255, 0), thickness=1)
 
-        if cropping:
-            frame = frame[y1:y2, x1:x2]
-        else:
-            pass
+#         if cropping:
+#             frame = frame[y1:y2, x1:x2]
+#         else:
+#             pass
 
-        plt.xlim(0, nx)
-        plt.ylim(0, ny)
-        plt.axis('off')
-        plt.subplots_adjust(
-            left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
-        plt.gca().invert_yaxis()
-        plt.title('frame num: ' + str(index), fontsize=16)
+#         plt.xlim(0, nx)
+#         plt.ylim(0, ny)
+#         plt.axis('off')
+#         plt.subplots_adjust(
+#             left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+#         plt.gca().invert_yaxis()
+#         plt.title('frame num: ' + str(index), fontsize=16)
 
-        plt.imshow(frame)
+#         plt.imshow(frame)
 
-        sm = plt.cm.ScalarMappable(cmap=colors, norm=plt.Normalize(
-            vmin=-0.5, vmax=len(bodyparts2plot)-0.5))
-        sm._A = []
-        cbar = plt.colorbar(sm, ticks=range(len(bodyparts2plot)))
-        cbar.set_ticklabels(bodyparts2plot)
+#         sm = plt.cm.ScalarMappable(cmap=colors, norm=plt.Normalize(
+#             vmin=-0.5, vmax=len(bodyparts2plot)-0.5))
+#         sm._A = []
+#         cbar = plt.colorbar(sm, ticks=range(len(bodyparts2plot)))
+#         cbar.set_ticklabels(bodyparts2plot)
 
-        display.clear_output(wait=True)
-        display.display(pl.gcf())
-        time.sleep(0.1)
+#         display.clear_output(wait=True)
+#         display.display(pl.gcf())
+#         time.sleep(0.1)
 
-    if save_as_movie:
-        plt.tight_layout()
-        print("image name is {}".format(
-            label_path, 'frame_' + str(starting) + '.png'))
-        plt.savefig(os.path.join(
-            label_path, 'frame_' + str(starting) + '.png'))
+#     if save_as_movie:
+#         plt.tight_layout()
+#         print("image name is {}".format(
+#             label_path, 'frame_' + str(starting) + '.png'))
+#         plt.savefig(os.path.join(
+#             label_path, 'frame_' + str(starting) + '.png'))
 
-    plt.close('all')
+#     plt.close('all')

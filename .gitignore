@@ -140,3 +140,6 @@ pupil_track-Donnie-2019-02-12
 
 # h5
 *.h5
+
+# .ipynb
+*.ipynb

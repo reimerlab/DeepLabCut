@@ -1,0 +1,25 @@
+# ipynb
+*.ipynb
+
+# pupil_analysis directory
+# /pupil_track-Donnie-2019-02-12/*
+
+# pycache
+*/__pycache__/
+
+
+# .ipython
+*/.ipython*
+
+#.mp4
+*.mp4
+
+#.git
+.git
+.github
+
+#.nv
+.nv
+
+#video
+videos

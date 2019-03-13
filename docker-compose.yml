@@ -36,12 +36,11 @@ services:
         #      - .:/data/DeepLabCut
       - /home/donnie/Documents/Repos/DeepLabCut:/work/
       - /home/donnie/Documents/Repos/DLC_tool_DK:/work/
-    env_file: .env
       - /etc/localtime:/etc/localtime:ro
       - /tmp/.X11-unix:/tmp/.X11-unix
+    env_file: .env
     environment:
       - DISPLAY=$DISPLAY
       - USER_HOME=/DeepLabCut
-    env_file: .env
     entrypoint:
       - /bin/bash

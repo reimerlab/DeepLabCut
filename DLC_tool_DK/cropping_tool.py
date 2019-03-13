@@ -139,20 +139,16 @@ def update_config_crop_coords(config):
     auxiliaryfunctions.write_config(config, cfg)
 
 
-
-
-
-
-def update_inference_cropping_coords(config, video_list):
+def update_inference_cropping_coords(config, video_path):
     """
-    Given the list of videos, users can manually zoom in the area they want to crop and update the coordinates in config.yaml 
+    Given a video path, users can manually zoom in the area they want to crop and update cropping coordinates in config.yaml 
 
     Parameters
     ----------
     config : string
         Full path of the config.yaml file as a string.
-    video_list : list
-        A list containing 
+    video_path : str
+        Full path to the video
     """
 
     config_file = Path(config).resolve()
@@ -160,57 +156,56 @@ def update_inference_cropping_coords(config, video_list):
         cfg = yaml.load(ymlfile)
     print("Config file read successfully. \n")
 
-    for vindex, video_path in enumerate(video_list):
+    cap = cv2.VideoCapture(video_path)
+    if cap.isOpened():
+        nframes = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        height, width = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(
+            cv2.CAP_PROP_FRAME_WIDTH))
 
-        cap = cv2.VideoCapture(video_path)
-        if cap.isOpened():
-            nframes = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-            height, width = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(
-                cv2.CAP_PROP_FRAME_WIDTH))
+        print("original dim in {} by {}".format(width, height))
 
-            print("video {}: {} has original dim in {} by {}".format(
-                vindex, video_path, width, height))
+        # putting the frame to read at the very middle of the video
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int((nframes-1)/2))
+        _, frame = cap.read()
 
-            # putting the frame to read at the very middle of the video
-            cap.set(cv2.CAP_PROP_POS_FRAMES, int((nframes-1)/2))
-            res, frame = cap.read()
+        display = ZoomedDisplay(frame=frame, height=height, width=width)
 
-            display = ZoomedDisplay(frame=frame, height=height, width=width)
+        fig1, (ax1, ax2) = plt.subplots(1, 2)
 
-            fig1, (ax1, ax2) = plt.subplots(1, 2)
+        ax1.imshow(frame)
+        ax2.imshow(frame)
 
-            ax1.imshow(frame)
-            ax2.imshow(frame)
+        rect = UpdatingRect([0, 0], 0, 0, facecolor='None',
+                            edgecolor='red', linewidth=1.0)
+        rect.set_bounds(*ax2.viewLim.bounds)
+        ax1.add_patch(rect)
 
-            rect = UpdatingRect([0, 0], 0, 0, facecolor='None',
-                                edgecolor='red', linewidth=1.0)
-            rect.set_bounds(*ax2.viewLim.bounds)
-            ax1.add_patch(rect)
+        # Connect for changing the view limits
+        ax2.callbacks.connect('xlim_changed', rect)
+        ax2.callbacks.connect('ylim_changed', rect)
 
-            # Connect for changing the view limits
-            ax2.callbacks.connect('xlim_changed', rect)
-            ax2.callbacks.connect('ylim_changed', rect)
+        ax2.callbacks.connect('xlim_changed', display.ax_update)
+        ax2.callbacks.connect('ylim_changed', display.ax_update)
+        ax2.set_title("Zoom here")
 
-            ax2.callbacks.connect('xlim_changed', display.ax_update)
-            ax2.callbacks.connect('ylim_changed', display.ax_update)
-            ax2.set_title("Zoom here")
+        plt.show()
+        
+        new_width = display.xend - display.xstart
+        new_height = display.yend - display.ystart
 
-            plt.show()
-            
-            new_width = display.xend - display.xstart
-            new_height = display.yend - display.ystart
+        print("your cropped coords are {} {} {} {} with dim of {} by {} \n".format(
+            display.xstart, display.xend, display.ystart, display.yend, new_width, new_height))
 
-            print("your cropped coords are {} {} {} {} with dim of {} by {} \n".format(
-                display.xstart, display.xend, display.ystart, display.yend, new_width, new_height))
+        cfg['x1'] = display.xstart
+        cfg['x2'] = display.xend
+        cfg['y1'] = display.ystart
+        cfg['y2'] = display.yend
 
-            cfg['video_sets'][video_path] = {'crop': ', '.join(
-                map(str, [display.xstart, display.xend, display.ystart, display.yend]))}
+        cap.release()
+        plt.close("all")
 
-            cap.release()
-            plt.close("all")
-
-        else:
-            print("Cannot open the video file: {} !".format(video_path))
+    else:
+        print("Cannot open the video file: {} !".format(video_path))
 
     # Update the yaml config file
     auxiliaryfunctions.write_config(config, cfg)

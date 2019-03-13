@@ -8,13 +8,14 @@ https://matplotlib.org/examples/event_handling/viewlims.html
 
 You can use it anyway you want/modify however you want on your behalf.
 """
-
-
 import os
 import yaml
 import cv2
 from pathlib import Path
+import ruamel.yaml
+
 from deeplabcut.utils import auxiliaryfunctions
+
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
@@ -76,11 +77,8 @@ def update_config_crop_coords(config):
     config : string
         Full path of the config.yaml file as a string.
     """
-
     config_file = Path(config).resolve()
-    with open(str(config_file), 'r') as ymlfile:
-        cfg = yaml.load(ymlfile)
-    print("Config file read successfully. \n")
+    cfg = auxiliaryfunctions.read_config(config_file)
 
     video_sets = cfg['video_sets'].keys()
     for vindex, video_path in enumerate(video_sets):
@@ -119,7 +117,7 @@ def update_config_crop_coords(config):
             ax2.set_title("Zoom here")
 
             plt.show()
-            
+
             new_width = display.xend - display.xstart
             new_height = display.yend - display.ystart
 
@@ -139,22 +137,19 @@ def update_config_crop_coords(config):
     auxiliaryfunctions.write_config(config, cfg)
 
 
-def update_inference_cropping_coords(config, video_path):
+def update_inference_cropping_config(cropping_config, video_path):
     """
     Given a video path, users can manually zoom in the area they want to crop and update cropping coordinates in config.yaml 
 
     Parameters
     ----------
-    config : string
-        Full path of the config.yaml file as a string.
+    cropping_config: string
+        Full path of the inference_cropping.yaml file as a string.
     video_path : str
         Full path to the video
     """
-
-    config_file = Path(config).resolve()
-    with open(str(config_file), 'r') as ymlfile:
-        cfg = yaml.load(ymlfile)
-    print("Config file read successfully. \n")
+    config_file = Path(cropping_config).resolve()
+    cfg = auxiliaryfunctions.read_config(config_file)
 
     cap = cv2.VideoCapture(video_path)
     if cap.isOpened():
@@ -189,17 +184,17 @@ def update_inference_cropping_coords(config, video_path):
         ax2.set_title("Zoom here")
 
         plt.show()
-        
+
         new_width = display.xend - display.xstart
         new_height = display.yend - display.ystart
 
         print("your cropped coords are {} {} {} {} with dim of {} by {} \n".format(
             display.xstart, display.xend, display.ystart, display.yend, new_width, new_height))
 
-        cfg['x1'] = display.xstart
-        cfg['x2'] = display.xend
-        cfg['y1'] = display.ystart
-        cfg['y2'] = display.yend
+        cfg[video_path]['x1'] = int(display.xstart)
+        cfg[video_path]['x2'] = int(display.xend)
+        cfg[video_path]['y1'] = int(display.ystart)
+        cfg[video_path]['y2'] = int(display.yend)
 
         cap.release()
         plt.close("all")
@@ -208,4 +203,6 @@ def update_inference_cropping_coords(config, video_path):
         print("Cannot open the video file: {} !".format(video_path))
 
     # Update the yaml config file
-    auxiliaryfunctions.write_config(config, cfg)
+    yaml = ruamel.yaml.YAML()
+
+    yaml.dump(cfg,config_file)

@@ -12,7 +12,7 @@ import time
 import imageio
 from collections import OrderedDict
 from itertools import cycle
-from DLC_tool_DK.cropping_tool import update_config_crop_coords
+from DLC_tool_DK.cropping_tool import update_inference_cropping_config
 
 from deeplabcut.utils import auxiliaryfunctions
 from deeplabcut.utils.plotting import get_cmap
@@ -22,6 +22,7 @@ from deeplabcut.utils.video_processor import VideoProcessorCV as vp
 # for ipython purpose
 import pylab as pl
 from IPython import display
+
 
 def get_frame(path_to_video, frame_num):
     cap = cv2.VideoCapture(path_to_video)
@@ -70,7 +71,6 @@ def bodyparts_info(config, case, bodyparts, trainingsetindex=0, shuffle=1):
         label_path, case_full_name + DLCscorer + '.h5'))
 
     df_bodyparts = df_label[DLCscorer][bodyparts]
-    nframes = df_bodyparts.shape[0]
 
     df_bodyparts_likelihood = df_bodyparts.iloc[:, df_bodyparts.columns.get_level_values(
         1) == 'likelihood']
@@ -84,11 +84,13 @@ def bodyparts_info(config, case, bodyparts, trainingsetindex=0, shuffle=1):
 
 class PlotBodyparts():
 
-    def __init__(self, path_to_config, case, bodyparts, trainingsetindex=0, shuffle=1):
+    def __init__(self, path_to_config, path_to_cropping_config, case, bodyparts, trainingsetindex=0, shuffle=1):
         """
         Input:
             path_to_config: string
                 fullpath to config.yaml file
+            path_to_cropping_config: string
+                fullpath to cropping_config.yaml file
             case: string
                 case number to plot
             bodyparts: list
@@ -101,6 +103,8 @@ class PlotBodyparts():
 
         """
         self.config = auxiliaryfunctions.read_config(path_to_config)
+        self.cropping_config = auxiliaryfunctions.read_config(
+            path_to_cropping_config)
         self.case = case
         self.bodyparts = bodyparts  # make it as a property and cascade down all the others
         self.shuffle = shuffle
@@ -110,9 +114,52 @@ class PlotBodyparts():
         self.project_path = self.config['project_path']
         self.path_to_video = os.path.join(
             self.project_path, 'videos', self._case_full_name + '.avi')
+
+        #TODO compare by case, not the fullpath to the video
+        if self.path_to_video not in self.cropping_config.keys():
+            raise ValueError(
+                "case {} is not added to the cropping_config.yaml yet! \
+                    Also make sure you analyze the video without any cropping".format(self.path_to_video))
+
         self.label_path = os.path.join(
             self.project_path, 'analysis', self._case_full_name)
         self.clip = vp(fname=self.path_to_video)
+
+        self._trainFraction = self.config['TrainingFraction'][self.trainingsetindex]
+        self._DLCscorer = auxiliaryfunctions.GetScorerName(
+            self.config, self.shuffle, self._trainFraction)
+
+        self.df_label = pd.read_hdf(os.path.join(
+            self.label_path, self._case_full_name + self._DLCscorer + '.h5'))
+
+        # TODO maybe rename the variable
+        self._orig_df_bodyparts = self.df_label[self._DLCscorer][self.bodyparts]
+        self.df_bodyparts_likelihood = df_bodyparts.iloc[:, df_bodyparts.columns.get_level_values(
+            1) == 'likelihood']
+
+        self._cropping = input("cropping for inference ? True/False: ")
+        if self._cropping.casefold() == 'True' or self._cropping.casefold() == 'T' or self._cropping.casefold() == 'yes' or self._cropping.casefold() == 'y':
+            update_inference_cropping_config(
+                cropping_config=self.cropping_config, video_path=self.path_to_video)
+            self._cropping_coords = list(
+                dict(self.cropping_config[self.path_to_video]).values())[1:]
+            self._df_bodyparts_x = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
+                1) == 'x'] - self.cropping_coords[0]
+            self._df_bodyparts_y = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
+                1) == 'y'] - self.cropping_coords[2]
+
+        else:
+            self._cropping_coords = [
+                0, self.clip.width(), 0, self.clip.height()]
+            self._df_bodyparts_x = self._orig_df_bodyparts.iloc[:,
+                                                                self._orig_df_bodyparts.columns.get_level_values(1) == 'x']
+            self._df_bodyparts_y = self._orig_df_bodyparts.iloc[:,
+                                                                self._orig_df_bodyparts.columns.get_level_values(1) == 'y']
+
+        self.nx = self._cropping_coords[1] - self._cropping_coords[0]
+        self.ny = self._cropping_coords[3] - self._cropping_coords[2]
+
+        self.tf_likelihood_array = self.df_bodyparts_likelihood.values > self.pcutoff
 
         # plotting properties
         self._dotsize = 5
@@ -121,23 +168,6 @@ class PlotBodyparts():
         self._colormap = self.config['colormap']
         self._label_colors = get_cmap(len(bodyparts), name=self._colormap)
         self._alphavalue = self.config['alphavalue']
-        self._cropping = self.config['cropping']
-        if self._cropping:
-            self._cropping_coords = [
-                self.config['x1'], self.config['x2'], self.config['y1'], self.config['y2']]
-        else:
-            self._cropping_coords = [
-                0, self.clip.width(), 0, self.clip.height()]
-        self.nx = self._cropping_coords[1] - self._cropping_coords[0]
-        self.ny = self._cropping_coords[3] - self._cropping_coords[2]
-
-        (self.df_bodyparts_likelihood, self.df_bodyparts_x, self.df_bodyparts_y) = bodyparts_info(config=self.config,
-                                                                                                  case=self.case,
-                                                                                                  bodyparts=self.bodyparts,
-                                                                                                  trainingsetindex=self.trainingsetindex,
-                                                                                                  shuffle=self.shuffle)
-
-        self.tf_likelihood_array = self.df_bodyparts_likelihood.values > self.pcutoff
 
     @property
     def dotsize(self):
@@ -197,11 +227,24 @@ class PlotBodyparts():
     def cropping(self, value):
         if isinstance(value, bool):
             self._cropping = value
-            if self._cropping:  # TODO if true, prompt cropping tool box and update cropping_coords
-                pass
+            if self._cropping:
+                print("This function cannot be called in Jupyter Notebook")
+                update_inference_cropping_config(
+                    cropping_config=self.cropping_config, video_path=self.path_to_video)
+                self._cropping_coords = list(
+                    dict(self.cropping_config[self.path_to_video]).values())[1:]
+                self._df_bodyparts_x = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
+                    1) == 'x'] - self.cropping_coords[0]
+                self._df_bodyparts_y = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
+                    1) == 'y'] - self.cropping_coords[2]
+
             else:  # restore cropping coords to the original frame size
                 self._cropping_coords = list(
                     0, self.clip.width(), 0, self.clip.height())
+                self._df_bodyparts_x = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
+                    1) == 'x']
+                self._df_bodyparts_y = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
+                    1) == 'y']
         else:
             raise TypeError("cropping must be a boolean")
 
@@ -209,52 +252,39 @@ class PlotBodyparts():
     def cropping_coords(self):
         return self._cropping_coords
 
-    #TODO link cropping and cropping_coords with cropping tool
-    @cropping_coords.setter
-    def cropping_coords(self, value):
-        if self.cropping:
-            if not isinstance(value, list):
-                raise TypeError("coordinates must be a list")
-            elif len(value) != 4:
-                raise ValueError("length of the coordinates must be 4")
-            self._cropping_coords = value
-        else:
-            print("Cropping is set to False! You cannot reset the cropping coordinates. Default value at original frame size")
+    # @property
+    # def bodyparts_info(self):
+    #     return self._df_bodyparts_likelihood, self._df_bodyparts_x, self._df_bodyparts_y
 
-    @property
-    def bodyparts_info(self):
-        return self._df_bodyparts_likelihood, self._df_bodyparts_x, self._df_bodyparts_y
-    
-    @bodyparts_info.setter
-    def bodyparts_info(self):
-        """
-        Given bodyparts, return corresponding likelihood, x-coordinates, and y-coordinates in dataframe
+    # @bodyparts_info.setter
+    # def bodyparts_info(self):
+    #     """
+    #     Given bodyparts, return corresponding likelihood, x-coordinates, and y-coordinates in dataframe
 
-        Using pandas instead of numpy as my data is in range of 50k to 500k
-        http://gouthamanbalaraman.com/blog/numpy-vs-pandas-comparison.html
-        """
-        trainFraction = config['TrainingFraction'][self.trainingsetindex]
-        DLCscorer = auxiliaryfunctions.GetScorerName(
-            self.config, self.shuffle, trainFraction)
+    #     Using pandas instead of numpy as my data is in range of 50k to 500k
+    #     http://gouthamanbalaraman.com/blog/numpy-vs-pandas-comparison.html
+    #     """
+    #     self._trainFraction = self.config['TrainingFraction'][self.trainingsetindex]
+    #     self._DLCscorer = auxiliaryfunctions.GetScorerName(
+    #         self.config, self.shuffle, trainFraction)
 
-        df_label = pd.read_hdf(os.path.join(
-            self.label_path, self._case_full_name + DLCscorer + '.h5'))
+    #     self.df_label = pd.read_hdf(os.path.join(
+    #         self.label_path, self._case_full_name + self._DLCscorer + '.h5'))
 
-        df_bodyparts = df_label[DLCscorer][bodyparts]
-        nframes = df_bodyparts.shape[0]
+    #     df_bodyparts = self.df_label[self._DLCscorer][self.bodyparts]
 
-        df_bodyparts_likelihood = df_bodyparts.iloc[:, df_bodyparts.columns.get_level_values(
-            1) == 'likelihood']
-        df_bodyparts_x = df_bodyparts.iloc[:,
-                                        df_bodyparts.columns.get_level_values(1) == 'x']
-        df_bodyparts_y = df_bodyparts.iloc[:,
-                                        df_bodyparts.columns.get_level_values(1) == 'y']
-        if self.cropping:
-            df_bodyparts_x -= self.cropping_coords[0]
-            df_bodyparts_y -= self.cropping_coords[2]
-        
-        return df_bodyparts_likelihood, df_bodyparts_x, df_bodyparts_y
-        
+    #     df_bodyparts_likelihood = df_bodyparts.iloc[:, df_bodyparts.columns.get_level_values(
+    #         1) == 'likelihood']
+    #     df_bodyparts_x = df_bodyparts.iloc[:,
+    #                                        df_bodyparts.columns.get_level_values(1) == 'x']
+    #     df_bodyparts_y = df_bodyparts.iloc[:,
+    #                                        df_bodyparts.columns.get_level_values(1) == 'y']
+    #     if self.cropping:
+    #         df_bodyparts_x -= self.cropping_coords[0]
+    #         df_bodyparts_y -= self.cropping_coords[2]
+
+    #     return df_bodyparts_likelihood, df_bodyparts_x, df_bodyparts_y
+
     def coords_pcutoff(self, frame_num):
         """
         Given a frame number, return bpindex, x & y coordinates that meet pcutoff criteria
@@ -288,12 +318,12 @@ class PlotBodyparts():
 
         image = self.clip._read_specific_frame(frame_num)
 
-        if self._cropping:
+        if self.cropping:
 
-            x1 = self._cropping_coords[0]
-            x2 = self._cropping_coords[1]
-            y1 = self._cropping_coords[2]
-            y2 = self._cropping_coords[3]
+            x1 = self.cropping_coords[0]
+            x2 = self.cropping_coords[1]
+            y1 = self.cropping_coords[2]
+            y2 = self.cropping_coords[3]
 
             image = image[y1:y2, x1:x2]
 
@@ -332,19 +362,19 @@ class PlotBodyparts():
             fig.canvas.draw()
             image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
             image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-            
+
             return image
 
         # plt.show()
         # plt.close('all')
-        
+
         return fig
 
     def plot_over_frames(self, start, end, save_fig=False):
 
         for i in range(start, end):
             self.plot_one_frame(i, save_fig=save_fig)
-        
+
         # plt.close('all')
 
     def make_gif(self, start, num_frames, save_gif=True):
@@ -506,9 +536,6 @@ class PupilFitting(PlotBodyparts):
             y2 = self._cropping_coords[3]
 
             image = image[y1:y2, x1:x2]
-
-        pupil_coords = []
-        eyelid_coords = OrderedDict()
 
         # plot bodyparts above the pcutoff
         bpindex, x_coords, y_coords = self.coords_pcutoff(frame_num)

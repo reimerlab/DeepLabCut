@@ -147,6 +147,10 @@ def update_inference_cropping_config(cropping_config, video_path):
         Full path of the inference_cropping.yaml file as a string.
     video_path : str
         Full path to the video
+
+    Output:
+        new cropping coordinates: list
+            list contatining xstart, xend, ystart, and yend
     """
     config_file = Path(cropping_config).resolve()
     cfg = auxiliaryfunctions.read_config(config_file)
@@ -199,10 +203,14 @@ def update_inference_cropping_config(cropping_config, video_path):
         cap.release()
         plt.close("all")
 
+        # Update the yaml config file
+        yaml = ruamel.yaml.YAML()
+
+        yaml.dump(cfg,config_file)
+
+        return [int(display.xstart), int(display.xend), int(display.ystart), int(display.yend)]
+
     else:
         print("Cannot open the video file: {} !".format(video_path))
 
-    # Update the yaml config file
-    yaml = ruamel.yaml.YAML()
 
-    yaml.dump(cfg,config_file)

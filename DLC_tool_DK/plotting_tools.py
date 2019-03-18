@@ -102,9 +102,12 @@ class PlotBodyparts():
                 By default the first (note that TrainingFraction is a list in config.yaml).
 
         """
-        self.config = auxiliaryfunctions.read_config(path_to_config)
+        self.path_to_config = path_to_config
+        self.path_to_cropping_config = path_to_cropping_config
+
+        self.config = auxiliaryfunctions.read_config(self.path_to_config)
         self.cropping_config = auxiliaryfunctions.read_config(
-            path_to_cropping_config)
+            self.path_to_cropping_config)
         self.case = case
         self.bodyparts = bodyparts  # make it as a property and cascade down all the others
         self.shuffle = shuffle
@@ -140,12 +143,35 @@ class PlotBodyparts():
         self.df_bodyparts_likelihood = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
             1) == 'likelihood']
 
-        self._cropping = input("cropping for inference ? True/False: ")
+        input_cropping = input("cropping for inference ? True/False: ")
 
-        if self._cropping.casefold() == 'true' or self._cropping.casefold() == 't' or self._cropping.casefold() == 'yes' or self._cropping.casefold() == 'y':
+        if input_cropping.casefold() == 'true' or input_cropping.casefold() == 't' \
+                or input_cropping.casefold() == 'yes' or input_cropping.casefold() == 'y':
+            self._cropping = True
 
-            update_inference_cropping_config(
-                cropping_config=path_to_cropping_config, video_path=self.path_to_video)
+            input_use_preset_cropping_coords = input(
+                "Use predefined cropping coordinates from cropping_config file (True) "
+                "or define new cropping coordinates (False)? : ")
+
+            if input_use_preset_cropping_coords.casefold() != 'true' and input_use_preset_cropping_coords.casefold() != 't' \
+                    and input_use_preset_cropping_coords.casefold() != 'yes' and input_use_preset_cropping_coords.casefold() != 'y':
+
+                self._use_preset_cropping_coords = False
+
+                print(
+                    "This function cannot be called in Jupyter Notebook! Do it in IPython!")
+                print("Now the cropping coordinates are updated in cropping_config.yaml")
+
+                update_inference_cropping_config(
+                    cropping_config=self.path_to_cropping_config, video_path=self.path_to_video)
+
+                # re-read cropping config to get the updated coords
+                self.cropping_config = auxiliaryfunctions.read_config(
+                    self.path_to_cropping_config)
+
+            else:
+                self._use_preset_cropping_coords = True
+
             self._cropping_coords = list(
                 dict(self.cropping_config[self.path_to_video]).values())[1:]
             self.df_bodyparts_x = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
@@ -154,6 +180,7 @@ class PlotBodyparts():
                 1) == 'y'] - self.cropping_coords[2]
 
         else:
+            self._cropping = False
             self._cropping_coords = [
                 0, self.clip.width(), 0, self.clip.height()]
             self.df_bodyparts_x = self._orig_df_bodyparts.iloc[:,
@@ -233,9 +260,31 @@ class PlotBodyparts():
         if isinstance(value, bool):
             self._cropping = value
             if self._cropping:
-                print("This function cannot be called in Jupyter Notebook")
-                update_inference_cropping_config(
-                    cropping_config=self.cropping_config, video_path=self.path_to_video)
+
+                input_use_preset_cropping_coords = input(
+                    "Use predefined cropping coordinates from cropping_config file (True) "
+                    "or define new cropping coordinates (False)? : ")
+
+                if input_use_preset_cropping_coords.casefold() != 'true' and input_use_preset_cropping_coords.casefold() != 't' \
+                        and input_use_preset_cropping_coords.casefold() != 'yes' and input_use_preset_cropping_coords.casefold() != 'y':
+
+                    self._use_preset_cropping_coords = True
+
+                    print(
+                        "This function cannot be called in Jupyter Notebook! Do it in IPython!")
+
+                    update_inference_cropping_config(
+                        cropping_config=self.path_to_cropping_config, video_path=self.path_to_video)
+
+                    print(
+                        "Now the cropping coordinates are updated in cropping_config.yaml")
+                    # re-read cropping config to get the updated coords
+                    self.cropping_config = auxiliaryfunctions.read_config(
+                        self.path_to_cropping_config)
+
+                else:
+                    self._use_preset_cropping_coords = False
+
                 self._cropping_coords = list(
                     dict(self.cropping_config[self.path_to_video]).values())[1:]
                 self.df_bodyparts_x = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
@@ -244,8 +293,8 @@ class PlotBodyparts():
                     1) == 'y'] - self.cropping_coords[2]
 
             else:  # restore cropping coords to the original frame size
-                self._cropping_coords = list(
-                    0, self.clip.width(), 0, self.clip.height())
+                self._cropping_coords = [
+                    0, self.clip.width(), 0, self.clip.height()]
                 self.df_bodyparts_x = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
                     1) == 'x']
                 self.df_bodyparts_y = self._orig_df_bodyparts.iloc[:, self._orig_df_bodyparts.columns.get_level_values(
@@ -253,42 +302,12 @@ class PlotBodyparts():
         else:
             raise TypeError("cropping must be a boolean")
 
+        self.nx = self._cropping_coords[1] - self._cropping_coords[0]
+        self.ny = self._cropping_coords[3] - self._cropping_coords[2]
+
     @property
     def cropping_coords(self):
         return self._cropping_coords
-
-    # @property
-    # def bodyparts_info(self):
-    #     return self._df_bodyparts_likelihood, self._df_bodyparts_x, self._df_bodyparts_y
-
-    # @bodyparts_info.setter
-    # def bodyparts_info(self):
-    #     """
-    #     Given bodyparts, return corresponding likelihood, x-coordinates, and y-coordinates in dataframe
-
-    #     Using pandas instead of numpy as my data is in range of 50k to 500k
-    #     http://gouthamanbalaraman.com/blog/numpy-vs-pandas-comparison.html
-    #     """
-    #     self._trainFraction = self.config['TrainingFraction'][self.trainingsetindex]
-    #     self._DLCscorer = auxiliaryfunctions.GetScorerName(
-    #         self.config, self.shuffle, trainFraction)
-
-    #     self.df_label = pd.read_hdf(os.path.join(
-    #         self.label_path, self._case_full_name + self._DLCscorer + '.h5'))
-
-    #     df_bodyparts = self.df_label[self._DLCscorer][self.bodyparts]
-
-    #     df_bodyparts_likelihood = df_bodyparts.iloc[:, df_bodyparts.columns.get_level_values(
-    #         1) == 'likelihood']
-    #     df_bodyparts_x = df_bodyparts.iloc[:,
-    #                                        df_bodyparts.columns.get_level_values(1) == 'x']
-    #     df_bodyparts_y = df_bodyparts.iloc[:,
-    #                                        df_bodyparts.columns.get_level_values(1) == 'y']
-    #     if self.cropping:
-    #         df_bodyparts_x -= self.cropping_coords[0]
-    #         df_bodyparts_y -= self.cropping_coords[2]
-
-    #     return df_bodyparts_likelihood, df_bodyparts_x, df_bodyparts_y
 
     def coords_pcutoff(self, frame_num):
         """
@@ -313,10 +332,9 @@ class PlotBodyparts():
 
         return bpindex, df_x_coords, df_y_coords
 
-    def plot_one_frame(self, frame_num, save_fig=False, save_gif=False):
+    def plot_one_frame(self, frame_num, save_fig=False):
 
-        plt.axis('off')
-        fig = plt.figure(frameon=False, figsize=(10, 8))
+        fig = plt.figure(frameon=False, figsize=(12, 8))
         # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
         plt.subplots_adjust(left=0, bottom=0, right=1,
                             top=1, wspace=0, hspace=0)
@@ -342,9 +360,7 @@ class PlotBodyparts():
 
         plt.xlim(0, self.nx)
         plt.ylim(0, self.ny)
-        plt.axis('off')
-        plt.subplots_adjust(
-            left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+
         plt.gca().invert_yaxis()
         plt.title('frame num: ' + str(frame_num), fontsize=30)
 
@@ -353,36 +369,41 @@ class PlotBodyparts():
         sm._A = []
         cbar = plt.colorbar(sm, ticks=range(len(self.bodyparts)))
         cbar.set_ticklabels(self.bodyparts)
-        cbar.ax.tick_params(labelsize=20)
+        cbar.ax.tick_params(labelsize=18)
 
-        display.clear_output(wait=True)
-        display.display(pl.gcf())
-        time.sleep(1.0)
+        plt.axis('off')
+        plt.tight_layout()
+
+        plt.show()
 
         if save_fig:
-            plt.tight_layout()
             plt.savefig(os.path.join(
                 self.label_path, 'frame_' + str(frame_num) + '.png'))
 
-        if save_gif:
-            fig.canvas.draw()
-            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-
-            return image
-
-        # plt.show()
         # plt.close('all')
 
         return fig
 
-    def plot_over_frames(self, start, end, save_fig=False):
-        # TODO consider combining make_gif and plot_over_frames into one
+    def plot_over_frames(self, start, end, save_gif=False):
+
+        # plt.figure(frameon=False, figsize=(12, 8))
+        plt_list = []
 
         for i in range(start, end):
-            self.plot_one_frame(i, save_fig=save_fig)
+            plot = self.plot_one_frame(frame_num=i, save_fig=False)
+            plt_list.append(plot)
+            display.clear_output(wait=True)
+            # display.display(pl.gcf())
+            time.sleep(0.5)
+        
+        if save_gif:
+            gif_name = self.case + '_' + \
+                str(start) + '_' + str(end) + '.gif'
+            save_dir = os.path.join(
+                self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
+            imageio.mimsave(save_dir, plt_list, fps=1)
 
-        # plt.close('all')
+        plt.close('all')
 
     def make_gif(self, start, num_frames, save_gif=True):
         gif_name = self.case + '_' + \
@@ -390,7 +411,7 @@ class PlotBodyparts():
         save_dir = os.path.join(
             self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
 
-        plt.figure(frameon=False, figsize=(10, 8))
+        plt.figure(frameon=False, figsize=(12, 8))
         plt_list = []
 
         for i in range(start, start + num_frames):
@@ -470,17 +491,19 @@ class PupilFitting(PlotBodyparts):
             frame: numpy array
                 A frame to be fitted
         Output:
-            frame:
-                A numpy array frame with eyelids connected
-            mask:
-                A binary numpy array
+            A dictionary containing the fitted frame and its corresponding binary mask.
+            For each key in dictionary:
+                frame:
+                    A numpy array frame with eyelids connected
+                mask:
+                    A binary numpy array
         """
         mask = np.zeros(frame.shape[:2], dtype=np.uint8)
 
         _, df_x_coords, df_y_coords = self.coords_pcutoff(frame_num)
         eyelid_labels = [label for label in list(
             df_x_coords.index.get_level_values(0)) if 'eyelid' in label]
-        
+
         for eyelid in eyelid_labels:
             next_bp = self.complete_eyelid_graph[eyelid]
 
@@ -493,16 +516,19 @@ class PupilFitting(PlotBodyparts):
                 map(int, map(round, [df_x_coords[next_bp].values[0], df_y_coords[next_bp].values[0]])))
             # opencv has some issues with dealing with np objects. Cast it manually again
             frame = cv2.line(
-                np.array(frame), coord_0, coord_1, color=(0,255,0), thickness=self.line_thickness)
+                np.array(frame), coord_0, coord_1, color=(255, 0, 0), thickness=self.line_thickness)
             mask = cv2.line(
-                mask, coord_0, coord_1, color=(0,255,0), thickness=self.line_thickness)
+                mask, coord_0, coord_1, color=(255), thickness=self.line_thickness)
 
-        # fill out the area connected by lines
-        plt.imshow(frame, cmap='gray')
-        new_mask =np.zeros((mask.shape[0]+2, mask.shape[1]+2),dtype=np.uint8)
-        # cv2.floodFill(mask, new_mask, seedPoint=(0,0), newVal=1)
+        # fill out the mask with 1s OUTSIDE of the mask, then invert 0 and 1
+        # for cv2.floodFill, need a mask that is 2 pixels bigger than the input image
+        new_mask = np.zeros((mask.shape[0]+2, mask.shape[1]+2), dtype=np.uint8)
+        cv2.floodFill(mask, new_mask, seedPoint=(0, 0), newVal=124)
+
+        final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
+
         # plt.imshow(mask)
-        return {'frame': frame, 'mask': mask}
+        return {'frame': frame, 'mask': final_mask}
 
     def fit_circle_to_pupil(self, frame_num, frame):
         """
@@ -514,7 +540,13 @@ class PupilFitting(PlotBodyparts):
                 A frame to be fitted
         Output: dictionary
             A dictionary with the fitted frame, center and radius of the fitted circle. If fitting did
-            not occur, return the original frame with center and raidus as None
+            not occur, return the original frame with center and raidus as None. 
+            For each key in dictionary:
+                frame: a numpy array of the frame with pupil circle
+                center: coordinates of the center of the fitted circle. In tuple format
+                radius: radius of the fitted circle in int format
+                pupil_label_num: number of pupil labels used for fitting
+                mask: a binary mask for the fitted circle area
         """
 
         mask = np.zeros(frame.shape, dtype=np.uint8)
@@ -545,37 +577,45 @@ class PupilFitting(PlotBodyparts):
             # opencv has some issues with dealing with np objects. Cast it manually again
             frame = cv2.circle(np.array(frame), center,
                                radius, color=(0, 255, 0), thickness=self.line_thickness)
-            
+
             mask = cv2.circle(mask, center,
-                               radius, color=(0, 255, 0), thickness=self.line_thickness)
+                              radius, color=(0, 255, 0), thickness=self.line_thickness)
 
-        return {'frame': frame, 'center': center, 'radius': radius, 'pupil_label_num': len(pupil_labels), 'mask': mask}
+        # fill out the mask with 1s OUTSIDE of the mask, then invert 0 and 1
+        # for cv2.floodFill, need a mask that is 2 pixels bigger than the input image
+        new_mask = np.zeros((mask.shape[0]+2, mask.shape[1]+2), dtype=np.uint8)
+        cv2.floodFill(mask, new_mask, seedPoint=(0, 0), newVal=1)
+        final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
 
-    def detect_visible_pupil(self, frame_num):
+        return {'frame': frame, 'center': center, 'radius': radius, 'pupil_label_num': len(pupil_labels), 'mask': final_mask}
+
+    def detect_visible_pupil(self, frame_num, frame):
         """
-        Given a frame, find a visible part of the pupil
+        Given a frame, find a visible part of the pupil by finding the intersection of pupil and eyelid masks
+        If pupil mask does not exist(i.e. label < 3), return None
+
+        Input:
+            frame_num: int
+                frame number to extract a specific frame
+            frame:
+
+        Output:
+            binary numpy array or None
+                If pupil was fitted, then return the visible part. Otherwise None
         """
-        frame = get_frame(self.path_to_video, frame_num)
+
         eyelid_connected = self.connect_eyelids(frame_num, frame)
         pupil_fitted = self.fit_circle_to_pupil(
-            frame_num, eyelid_connected)
+            frame_num, eyelid_connected['frame'])
 
         if pupil_fitted['pupil_label_num'] >= 3:
-            
-            gray_img = cv2.cvtColor(
-                pupil_fitted['frame'], cv2.COLOR_BGR2GRAY)
-            # type=0: binary threshold
-            ret, thresh = cv2.threshold(
-                src=gray_img, thresh=127, maxval=255, type=0)
-            # image, contours, hierarchy = cv2.findContours()
-            plt.imshow(thresh)
+            return np.logical_and(pupil_fitted['mask'], eyelid_connected['mask']).astype(int)
+        else:
+            return None
 
-        return image, contours, hierarchy
+    def plot_fitted_frame(self, frame_num, save_fig=False):
 
-    def plot_fitted_frame(self, frame_num, save_fig=False, save_gif=False):
-
-        plt.axis('off')
-        fig = plt.figure(frameon=False, figsize=(10, 8))
+        fig = plt.figure(frameon=False, figsize=(12, 8))
         # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
         plt.subplots_adjust(left=0, bottom=0, right=1,
                             top=1, wspace=0, hspace=0)
@@ -596,17 +636,26 @@ class PupilFitting(PlotBodyparts):
         plt.scatter(x_coords.values, y_coords.values, s=self.dotsize**2,
                     color=self._label_colors(bpindex), alpha=self.alphavalue)
 
-        eyelid_connected_frame = self.connect_eyelids(frame_num, frame=image)
+        eyelid_connected = self.connect_eyelids(frame_num, frame=image)
 
-        circle_fit = self.fit_circle_to_pupil(
-            frame_num, frame=eyelid_connected_frame)
+        pupil_fitted = self.fit_circle_to_pupil(
+            frame_num, frame=eyelid_connected['frame'])
 
-        plt.imshow(circle_fit['frame'])
+        if pupil_fitted['pupil_label_num'] >= 3:
+            visible_mask = np.logical_and(
+                pupil_fitted['mask'], eyelid_connected['mask']).astype(int)
+
+        # 126,0,255 for the color
+        color_mask = np.zeros((*visible_mask.shape, 3), dtype=np.uint8)
+        color_mask[visible_mask == 1, 0] = 126
+        color_mask[visible_mask == 1, 2] = 255
+
+        plt.imshow(pupil_fitted['frame'])
+        plt.imshow(color_mask, alpha=0.3)
+
         plt.xlim(0, self.nx)
         plt.ylim(0, self.ny)
-        plt.axis('off')
-        plt.subplots_adjust(
-            left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
+
         plt.gca().invert_yaxis()
         plt.title('frame num: ' + str(frame_num), fontsize=30)
 
@@ -615,40 +664,49 @@ class PupilFitting(PlotBodyparts):
         sm._A = []
         cbar = plt.colorbar(sm, ticks=range(len(self.bodyparts)))
         cbar.set_ticklabels(self.bodyparts)
-        cbar.ax.tick_params(labelsize=20)
+        cbar.ax.tick_params(labelsize=18)
 
-        display.clear_output(wait=True)
-        display.display(pl.gcf())
-        time.sleep(1.0)
+        plt.axis('off')
+        plt.tight_layout()
+
+        plt.show()
 
         if save_fig:
-            plt.tight_layout()
             plt.savefig(os.path.join(
-                self.label_path, 'frame_' + str(frame_num) + '.png'))
-
-        if save_gif:
-            fig.canvas.draw()
-            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-            plt.close('all')
-            return image
+                self.label_path, 'fitted_frame_' + str(frame_num) + '.png'))
 
         # plt.close('all')
         return fig
 
-    def plot_over_fitted_frames(self, start, end, save_fig=False):
+    def plot_over_fitted_frames(self, start, end, save_gif=False):
+        
+        plt.figure(frameon=False, figsize=(12, 8))
+        plt_list = []
 
         for i in range(start, end):
-            self.plot_fitted_frame(i, save_fig=save_fig)
+            plot = self.plot_fitted_frame(frame_num=i, save_fig=False)
+            plt_list.append(plot)
+            display.clear_output(wait=True)
+            # display.display(pl.gcf())
+            time.sleep(0.5)
+        
+        if save_gif:
+            gif_name = self.case + '_' + \
+            str(start) + '_' + str(end) + '.gif'
+            save_dir = os.path.join(
+                self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
+            imageio.mimsave(save_dir, plt_list, fps=1)
+
+        plt.close('all')
 
     def make_gif(self, start, num_frames, save_gif=True):
         # overide the PlotBodyparts method
         gif_name = self.case + '_' + \
-            str(start) + '_' + str(start+num_frames) + '.gif'
+            'fitted_' + str(start) + '_' + str(start+num_frames) + '.gif'
         save_dir = os.path.join(
             self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
 
-        plt.figure(frameon=False, figsize=(10, 8))
+        plt.figure(frameon=False, figsize=(12, 8))
         plt_list = []
 
         for i in range(start, start + num_frames):
@@ -656,7 +714,9 @@ class PupilFitting(PlotBodyparts):
             plt_list.append(plot)
         imageio.mimsave(save_dir, plt_list, fps=1)
 
-#TODO build a classifier for 3 cases of eyes: closed, blurry, and open
+# TODO build a classifier for 3 cases of eyes: closed, blurry, and open
+
+
 class EyeStatus():
     def __init__():
         pass

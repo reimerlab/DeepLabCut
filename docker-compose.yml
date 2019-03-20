@@ -2,7 +2,7 @@ version: '2.3'
 
 services:
   notebook:
-    image: "deeplabcut-work-image:2.0.5-dj"
+    image: "deeplabcut-work-image:2.0.5-ffmpeg"
     runtime: nvidia
     ports:
       - "8888:8888"
@@ -26,7 +26,7 @@ services:
       - --no-browser
   
   bash:
-    image: "deeplabcut-work-image:2.0.5-dj"
+    image: "deeplabcut-work-image:2.0.5-ffmpeg"
     runtime: nvidia
     volumes:
       - /mnt/:/mnt/

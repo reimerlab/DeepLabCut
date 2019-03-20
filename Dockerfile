@@ -51,11 +51,23 @@ RUN sudo apt-get install -y libgtk2.0-dev libgtk-3-dev \
     libnotify-dev freeglut3 freeglut3-dev libsm-dev \
     libwebkitgtk-dev libwebkitgtk-3.0-dev
 
-# Install plotly for plotting interactive plotting in jupyter
+# Install plotly and bokeh for plotting interactive plotting in jupyter
 RUN pip install plotly 
+RUN pip install bokeh
 
 # Install datajoint
 RUN pip install datajoint
+# need to install some other package for dj.ERD to work (graphviz-dev?)
+
+
+# Install ffmpeg
+RUN sudo apt-get install -y software-properties-common
+RUN sudo add-apt-repository ppa:jonathonf/ffmpeg-4
+RUN sudo apt-get update
+RUN sudo apt-get install -y ffmpeg
+
+# Install ffmpeg-python
+RUN pip install ffmpeg-python
 
 WORKDIR /work
 CMD ["/bin/bash"]

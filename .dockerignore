@@ -2,7 +2,7 @@
 *.ipynb
 
 # pupil_analysis directory
-# /pupil_track-Donnie-2019-02-12/*
+/pupil_track-Donnie-2019-02-12/*
 
 # pycache
 */__pycache__/

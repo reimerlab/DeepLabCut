@@ -5,7 +5,6 @@ D Kim, donniek@bcm.edu
 
 import cv2
 import pandas as pd
-import matplotlib.pyplot as plt
 import os
 import numpy as np
 import time
@@ -22,6 +21,7 @@ from deeplabcut.utils.video_processor import VideoProcessorCV as vp
 # for ipython purpose
 import pylab as pl
 from IPython import display
+import matplotlib.pyplot as plt
 
 
 def get_frame(path_to_video, frame_num):
@@ -31,24 +31,6 @@ def get_frame(path_to_video, frame_num):
     _, img = cap.read()
     cap.release()
     return img
-
-
-def make_gif(case, start_frame_num, num_frame):
-    save_dir = os.path.join(mother_dir, 'analysis', case+'_beh', case+'.gif')
-
-    fig = plt.figure.Figure()
-    plt_list = []
-
-    for i in range(start_frame_num, start_frame_num + num_frame):
-        plot = plot_over_frames(config_path,
-                                case,
-                                bodyparts2plot=all_parts,
-                                starting=i,
-                                end=i+1,
-                                save_fig=False,
-                                save_gif=True)
-        plt_list.append(plot)
-    imageio.mimsave(save_dir, plt_list, fps=1)
 
 
 def bodyparts_info(config, case, bodyparts, trainingsetindex=0, shuffle=1):
@@ -198,6 +180,8 @@ class PlotBodyparts():
         self._colormap = self.config['colormap']
         self._label_colors = get_cmap(len(bodyparts), name=self._colormap)
         self._alphavalue = self.config['alphavalue']
+        self._fig_size = [12, 8]
+        self._dpi = 100
 
         self.tf_likelihood_array = self.df_bodyparts_likelihood.values > self._pcutoff
 
@@ -250,7 +234,26 @@ class PlotBodyparts():
     def alphavalue(self, value):
         self._alphavalue = value
 
-    # Need to refactorize this portion of the code
+    @property
+    def fig_size(self):
+        return self._fig_size
+    
+    @fig_size.setter
+    def fig_size (self, value):
+        if isinstance(value, list):
+            self._fig_size = value
+        else:
+            raise TypeError("fig_size must be in a list format")
+    
+    @property
+    def dpi(self):
+        return self._dpi
+    
+    @dpi.setter
+    def dpi(self,value):
+        self._dpi = value
+
+
     @property
     def cropping(self):
         return self._cropping
@@ -336,6 +339,7 @@ class PlotBodyparts():
 
         fig = plt.figure(frameon=False, figsize=(12, 8))
         # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
+        ax = fig.add_subplot(1,1,1)
         plt.subplots_adjust(left=0, bottom=0, right=1,
                             top=1, wspace=0, hspace=0)
 
@@ -374,7 +378,7 @@ class PlotBodyparts():
         plt.axis('off')
         plt.tight_layout()
 
-        plt.show()
+        fig.canvas.draw()
 
         if save_fig:
             plt.savefig(os.path.join(
@@ -382,20 +386,23 @@ class PlotBodyparts():
 
         # plt.close('all')
 
-        return fig
+        return ax, fig
 
-    def plot_over_frames(self, start, end, save_gif=False):
+    def plot_multiple_frames(self, start, end, save_gif=False):
 
         # plt.figure(frameon=False, figsize=(12, 8))
         plt_list = []
 
         for i in range(start, end):
-            plot = self.plot_one_frame(frame_num=i, save_fig=False)
-            plt_list.append(plot)
+            fig = self.plot_one_frame(frame_num=i, save_fig=False)[1]
+            data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            plt_list.append(data)
+
             display.clear_output(wait=True)
-            # display.display(pl.gcf())
+            display.display(pl.gcf())
             time.sleep(0.5)
-        
+
         if save_gif:
             gif_name = self.case + '_' + \
                 str(start) + '_' + str(end) + '.gif'
@@ -404,20 +411,6 @@ class PlotBodyparts():
             imageio.mimsave(save_dir, plt_list, fps=1)
 
         plt.close('all')
-
-    def make_gif(self, start, num_frames, save_gif=True):
-        gif_name = self.case + '_' + \
-            str(start) + '_' + str(start+num_frames) + '.gif'
-        save_dir = os.path.join(
-            self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
-
-        plt.figure(frameon=False, figsize=(12, 8))
-        plt_list = []
-
-        for i in range(start, start + num_frames):
-            plot = self.plot_one_frame(frame_num=i, save_gif=True)
-            plt_list.append(plot)
-        imageio.mimsave(save_dir, plt_list, fps=1)
 
 
 class PupilFitting(PlotBodyparts):
@@ -617,6 +610,7 @@ class PupilFitting(PlotBodyparts):
 
         fig = plt.figure(frameon=False, figsize=(12, 8))
         # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
+        ax = fig.add_subplot(1,1,1)
         plt.subplots_adjust(left=0, bottom=0, right=1,
                             top=1, wspace=0, hspace=0)
 
@@ -641,17 +635,17 @@ class PupilFitting(PlotBodyparts):
         pupil_fitted = self.fit_circle_to_pupil(
             frame_num, frame=eyelid_connected['frame'])
 
+        plt.imshow(pupil_fitted['frame'])
+
         if pupil_fitted['pupil_label_num'] >= 3:
             visible_mask = np.logical_and(
                 pupil_fitted['mask'], eyelid_connected['mask']).astype(int)
 
-        # 126,0,255 for the color
-        color_mask = np.zeros((*visible_mask.shape, 3), dtype=np.uint8)
-        color_mask[visible_mask == 1, 0] = 126
-        color_mask[visible_mask == 1, 2] = 255
-
-        plt.imshow(pupil_fitted['frame'])
-        plt.imshow(color_mask, alpha=0.3)
+            # 126,0,255 for the color
+            color_mask = np.zeros((*visible_mask.shape, 3), dtype=np.uint8)
+            color_mask[visible_mask == 1, 0] = 126
+            color_mask[visible_mask == 1, 2] = 255
+            plt.imshow(color_mask, alpha=0.3)
 
         plt.xlim(0, self.nx)
         plt.ylim(0, self.ny)
@@ -669,50 +663,57 @@ class PupilFitting(PlotBodyparts):
         plt.axis('off')
         plt.tight_layout()
 
-        plt.show()
+        fig.canvas.draw()
 
         if save_fig:
             plt.savefig(os.path.join(
                 self.label_path, 'fitted_frame_' + str(frame_num) + '.png'))
 
-        # plt.close('all')
-        return fig
+        return ax, fig
 
-    def plot_over_fitted_frames(self, start, end, save_gif=False):
-        
-        plt.figure(frameon=False, figsize=(12, 8))
+    def plot_multiple_fitted_frames(self, start, end, return_data=True, save_gif=False):
+
+        # plt.figure(frameon=False, figsize=(12, 8))
         plt_list = []
 
         for i in range(start, end):
-            plot = self.plot_fitted_frame(frame_num=i, save_fig=False)
-            plt_list.append(plot)
+            _, fig = self.plot_fitted_frame(frame_num=i, save_fig=False, return_data=True)
+            data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            plt_list.append(data)
+
             display.clear_output(wait=True)
-            # display.display(pl.gcf())
+            display.display(pl.gcf())
             time.sleep(0.5)
-        
+
         if save_gif:
-            gif_name = self.case + '_' + \
-            str(start) + '_' + str(end) + '.gif'
+            gif_name = self.case + '_fitted_' + \
+                str(start) + '_' + str(end) + '.gif'
             save_dir = os.path.join(
                 self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
             imageio.mimsave(save_dir, plt_list, fps=1)
 
         plt.close('all')
 
-    def make_gif(self, start, num_frames, save_gif=True):
-        # overide the PlotBodyparts method
-        gif_name = self.case + '_' + \
-            'fitted_' + str(start) + '_' + str(start+num_frames) + '.gif'
-        save_dir = os.path.join(
-            self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
+    def make_movie(self):
 
-        plt.figure(frameon=False, figsize=(12, 8))
-        plt_list = []
+        import matplotlib.animation as animation
+        
+        # initlize with first frame
+        ax, fig = self.plot_fitted_frame(frame_num=0)
 
-        for i in range(start, start + num_frames):
-            plot = self.plot_fitted_frame(frame_num=i, save_gif=True)
-            plt_list.append(plot)
-        imageio.mimsave(save_dir, plt_list, fps=1)
+        def update_frame(frame_num):
+            tmp = self.plot_fitted_frame(frame_num)
+
+
+
+        ani = animation.FuncAnimation(fig, self.plot_fitted_frame, range(1000,1040))
+        # ani = animation.FuncAnimation(fig, self.plot_fitted_frame, 10)
+        writer = animation.writers['ffmpeg'](fps=self.clip.FPS)
+
+        ani.save('demo.avi', writer=writer, dpi = self.dpi)
+        return ani
+
 
 # TODO build a classifier for 3 cases of eyes: closed, blurry, and open
 

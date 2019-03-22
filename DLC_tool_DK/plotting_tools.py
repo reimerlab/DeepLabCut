@@ -12,6 +12,7 @@ import imageio
 from collections import OrderedDict
 from itertools import cycle
 from DLC_tool_DK.cropping_tool import update_inference_cropping_config
+from DLC_tool_DK.min_enclosing_circle import smallest_enclosing_circle_naive
 
 from deeplabcut.utils import auxiliaryfunctions
 from deeplabcut.utils.plotting import get_cmap
@@ -237,22 +238,21 @@ class PlotBodyparts():
     @property
     def fig_size(self):
         return self._fig_size
-    
+
     @fig_size.setter
-    def fig_size (self, value):
+    def fig_size(self, value):
         if isinstance(value, list):
             self._fig_size = value
         else:
             raise TypeError("fig_size must be in a list format")
-    
+
     @property
     def dpi(self):
         return self._dpi
-    
-    @dpi.setter
-    def dpi(self,value):
-        self._dpi = value
 
+    @dpi.setter
+    def dpi(self, value):
+        self._dpi = value
 
     @property
     def cropping(self):
@@ -335,14 +335,26 @@ class PlotBodyparts():
 
         return bpindex, df_x_coords, df_y_coords
 
-    def plot_one_frame(self, frame_num, save_fig=False):
-
-        fig = plt.figure(frameon=False, figsize=(12, 8))
-        # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
-        ax = fig.add_subplot(1,1,1)
+    def configure_plot(self):
+        fig = plt.figure(frameon=False, figsize=self.fig_size)
+        ax = fig.add_subplot(1, 1, 1)
         plt.subplots_adjust(left=0, bottom=0, right=1,
                             top=1, wspace=0, hspace=0)
+        plt.xlim(0, self.nx)
+        plt.ylim(0, self.ny)
 
+        plt.gca().invert_yaxis()
+
+        sm = plt.cm.ScalarMappable(cmap=self._label_colors, norm=plt.Normalize(
+            vmin=-0.5, vmax=len(self.bodyparts)-0.5))
+        sm._A = []
+        cbar = plt.colorbar(sm, ticks=range(len(self.bodyparts)))
+        cbar.set_ticklabels(self.bodyparts)
+        cbar.ax.tick_params(labelsize=18)
+
+        return fig, ax
+
+    def plot_core(self, fig, ax, frame_num):
         # it's given in 3 channels but every channel is the same i.e. grayscale
         image = self.clip._read_specific_frame(frame_num)
 
@@ -355,28 +367,24 @@ class PlotBodyparts():
 
             image = image[y1:y2, x1:x2]
 
-        plt.imshow(image, cmap='gray')
+        ax_frame = ax.imshow(image, cmap='gray')
 
         # plot bodyparts above the pcutoff
         bpindex, df_x_coords, df_y_coords = self.coords_pcutoff(frame_num)
-        plt.scatter(df_x_coords.values, df_y_coords.values, s=self.dotsize**2,
-                    color=self._label_colors(bpindex), alpha=self.alphavalue)
+        ax_scatter = ax.scatter(df_x_coords.values, df_y_coords.values, s=self.dotsize**2,
+                                color=self._label_colors(bpindex), alpha=self.alphavalue)
 
-        plt.xlim(0, self.nx)
-        plt.ylim(0, self.ny)
+        return {'ax_frame': ax_frame, 'ax_scatter': ax_scatter}
 
-        plt.gca().invert_yaxis()
-        plt.title('frame num: ' + str(frame_num), fontsize=30)
+    def plot_one_frame(self, frame_num, save_fig=False):
 
-        sm = plt.cm.ScalarMappable(cmap=self._label_colors, norm=plt.Normalize(
-            vmin=-0.5, vmax=len(self.bodyparts)-0.5))
-        sm._A = []
-        cbar = plt.colorbar(sm, ticks=range(len(self.bodyparts)))
-        cbar.set_ticklabels(self.bodyparts)
-        cbar.ax.tick_params(labelsize=18)
+        fig, ax = self.configure_plot()
+
+        ax_dict = self.plot_core(fig, ax, frame_num)
 
         plt.axis('off')
         plt.tight_layout()
+        plt.title('frame num: ' + str(frame_num), fontsize=30)
 
         fig.canvas.draw()
 
@@ -384,18 +392,25 @@ class PlotBodyparts():
             plt.savefig(os.path.join(
                 self.label_path, 'frame_' + str(frame_num) + '.png'))
 
-        # plt.close('all')
+        # return ax_dict
 
-        return ax, fig
+    def plot_multi_frames(self, start, end, save_gif=False):
 
-    def plot_multiple_frames(self, start, end, save_gif=False):
-
-        # plt.figure(frameon=False, figsize=(12, 8))
         plt_list = []
 
-        for i in range(start, end):
-            fig = self.plot_one_frame(frame_num=i, save_fig=False)[1]
-            data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+        fig, ax = self.configure_plot()
+
+        for frame_num in range(start, end):
+            ax_dict = self.plot_core(fig, ax, frame_num)
+
+            plt.axis('off')
+            plt.tight_layout()
+            plt.title('frame num: ' + str(frame_num), fontsize=30)
+
+            fig.canvas.draw()
+
+            data = np.fromstring(fig.canvas.tostring_rgb(),
+                                 dtype=np.uint8, sep='')
             data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
             plt_list.append(data)
 
@@ -403,11 +418,12 @@ class PlotBodyparts():
             display.display(pl.gcf())
             time.sleep(0.5)
 
+            plt.cla()
+
         if save_gif:
-            gif_name = self.case + '_' + \
+            gif_name = self.case + \
                 str(start) + '_' + str(end) + '.gif'
-            save_dir = os.path.join(
-                self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
+            save_dir = os.path.join(self.label, gif_name)
             imageio.mimsave(save_dir, plt_list, fps=1)
 
         plt.close('all')
@@ -520,7 +536,7 @@ class PupilFitting(PlotBodyparts):
 
         final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
 
-        # plt.imshow(mask)
+        # ax.imshow(mask)
         return {'frame': frame, 'mask': final_mask}
 
     def fit_circle_to_pupil(self, frame_num, frame):
@@ -559,14 +575,13 @@ class PupilFitting(PlotBodyparts):
             pupil_x = df_x_coords.loc[pupil_labels].values
             pupil_y = df_y_coords.loc[pupil_labels].values
 
-            pupil_coords = np.array(zip)
+            pupil_coords = list(zip(pupil_x, pupil_y))
 
-            pupil_coords = np.array(
-                list(zip(pupil_x, pupil_y))).reshape(-1, 1, 2).astype(int)
+            x, y, radius = smallest_enclosing_circle_naive(pupil_coords)
 
-            (x, y), radius = cv2.minEnclosingCircle(pupil_coords)
             center = (int(x), int(y))
             radius = int(radius)
+
             # opencv has some issues with dealing with np objects. Cast it manually again
             frame = cv2.circle(np.array(frame), center,
                                radius, color=(0, 255, 0), thickness=self.line_thickness)
@@ -606,13 +621,8 @@ class PupilFitting(PlotBodyparts):
         else:
             return None
 
-    def plot_fitted_frame(self, frame_num, save_fig=False):
-
-        fig = plt.figure(frameon=False, figsize=(12, 8))
-        # fig = plt.figure(frameon=False, figsize=(nx * 1. / 100, ny * 1. / 100))
-        ax = fig.add_subplot(1,1,1)
-        plt.subplots_adjust(left=0, bottom=0, right=1,
-                            top=1, wspace=0, hspace=0)
+    def fitted_plot_core(self, fig, ax, frame_num):
+        # it's given in 3 channels but every channel is the same i.e. grayscale
 
         image = self.clip._read_specific_frame(frame_num)
 
@@ -627,40 +637,37 @@ class PupilFitting(PlotBodyparts):
 
         # plot bodyparts above the pcutoff
         bpindex, x_coords, y_coords = self.coords_pcutoff(frame_num)
-        plt.scatter(x_coords.values, y_coords.values, s=self.dotsize**2,
-                    color=self._label_colors(bpindex), alpha=self.alphavalue)
+        ax_scatter = ax.scatter(x_coords.values, y_coords.values, s=self.dotsize**2,
+                                color=self._label_colors(bpindex), alpha=self.alphavalue)
 
         eyelid_connected = self.connect_eyelids(frame_num, frame=image)
 
         pupil_fitted = self.fit_circle_to_pupil(
             frame_num, frame=eyelid_connected['frame'])
 
-        plt.imshow(pupil_fitted['frame'])
+        ax_frame = ax.imshow(pupil_fitted['frame'])
 
+        color_mask = np.zeros(shape=image.shape, dtype=np.uint8)
         if pupil_fitted['pupil_label_num'] >= 3:
             visible_mask = np.logical_and(
                 pupil_fitted['mask'], eyelid_connected['mask']).astype(int)
 
             # 126,0,255 for the color
-            color_mask = np.zeros((*visible_mask.shape, 3), dtype=np.uint8)
             color_mask[visible_mask == 1, 0] = 126
             color_mask[visible_mask == 1, 2] = 255
-            plt.imshow(color_mask, alpha=0.3)
 
-        plt.xlim(0, self.nx)
-        plt.ylim(0, self.ny)
+        ax_mask = ax.imshow(color_mask, alpha=0.3)
 
-        plt.gca().invert_yaxis()
+        return {'ax_frame': ax_frame, 'ax_scatter': ax_scatter, 'ax_mask': ax_mask}
+
+    def plot_fitted_frame(self, frame_num, save_fig=False):
+
+        fig, ax = self.configure_plot()
+        ax_dict = self.fitted_plot_core(fig, ax, frame_num)
+
         plt.title('frame num: ' + str(frame_num), fontsize=30)
 
-        sm = plt.cm.ScalarMappable(cmap=self._label_colors, norm=plt.Normalize(
-            vmin=-0.5, vmax=len(self.bodyparts)-0.5))
-        sm._A = []
-        cbar = plt.colorbar(sm, ticks=range(len(self.bodyparts)))
-        cbar.set_ticklabels(self.bodyparts)
-        cbar.ax.tick_params(labelsize=18)
-
-        plt.axis('off')
+        # plt.axis('off')
         plt.tight_layout()
 
         fig.canvas.draw()
@@ -669,16 +676,24 @@ class PupilFitting(PlotBodyparts):
             plt.savefig(os.path.join(
                 self.label_path, 'fitted_frame_' + str(frame_num) + '.png'))
 
-        return ax, fig
+    def plot_fitted_multi_frames(self, start, end, save_gif=False):
 
-    def plot_multiple_fitted_frames(self, start, end, return_data=True, save_gif=False):
+        fig, ax = self.configure_plot()
 
-        # plt.figure(frameon=False, figsize=(12, 8))
         plt_list = []
 
-        for i in range(start, end):
-            _, fig = self.plot_fitted_frame(frame_num=i, save_fig=False, return_data=True)
-            data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
+        for frame_num in range(start, end):
+
+            ax_dict = self.fitted_plot_core(fig, ax, frame_num)
+
+            plt.axis('off')
+            plt.tight_layout()
+            plt.title('frame num: ' + str(frame_num), fontsize=30)
+
+            fig.canvas.draw()
+
+            data = np.fromstring(fig.canvas.tostring_rgb(),
+                                 dtype=np.uint8, sep='')
             data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
             plt_list.append(data)
 
@@ -686,32 +701,38 @@ class PupilFitting(PlotBodyparts):
             display.display(pl.gcf())
             time.sleep(0.5)
 
+            plt.cla()
+
         if save_gif:
             gif_name = self.case + '_fitted_' + \
                 str(start) + '_' + str(end) + '.gif'
-            save_dir = os.path.join(
-                self.config['project_path'], 'analysis', self.case + '_beh', gif_name)
+            save_dir = os.path.join(self.label_path, gif_name)
             imageio.mimsave(save_dir, plt_list, fps=1)
 
         plt.close('all')
 
-    def make_movie(self):
+    def make_movie(self, start, end):
 
         import matplotlib.animation as animation
-        
+
         # initlize with first frame
-        ax, fig = self.plot_fitted_frame(frame_num=0)
+        fig, ax = self.configure_plot()
+        ax_dict = self.fitted_plot_core(fig, ax, frame_num=start)
+
+        plt.axis('off')
+        plt.tight_layout()
+        plt.title('frame num: ' + str(frame_num), fontsize=30)
 
         def update_frame(frame_num):
-            tmp = self.plot_fitted_frame(frame_num)
+            ax_dict['frame']
 
-
-
-        ani = animation.FuncAnimation(fig, self.plot_fitted_frame, range(1000,1040))
+        #
+        ani = animation.FuncAnimation(fig, update_frame, range(
+            start+1, end), interval=int(1/self.clip.FPS))
         # ani = animation.FuncAnimation(fig, self.plot_fitted_frame, 10)
-        writer = animation.writers['ffmpeg'](fps=self.clip.FPS)
+        writer = animation.writers['ffmpeg']
 
-        ani.save('demo.avi', writer=writer, dpi = self.dpi)
+        ani.save('demo.avi', writer=writer, dpi=self.dpi)
         return ani
 
 

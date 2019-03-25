@@ -336,7 +336,7 @@ class PlotBodyparts():
         return bpindex, df_x_coords, df_y_coords
 
     def configure_plot(self):
-        fig = plt.figure(frameon=False, figsize=self.fig_size)
+        fig = plt.figure(frameon=False, figsize=self.fig_size, dpi= self.dpi)
         ax = fig.add_subplot(1, 1, 1)
         plt.subplots_adjust(left=0, bottom=0, right=1,
                             top=1, wspace=0, hspace=0)
@@ -726,7 +726,7 @@ class PupilFitting(PlotBodyparts):
         plt.title('frame num: ' + str(start), fontsize=30)
 
         def update_frame(frame_num):
-            
+
             # clear out the axis
             plt.cla()
             # new_ax_dict = self.fitted_plot_core(fig, ax, frame_num=frame_num)
@@ -744,6 +744,62 @@ class PupilFitting(PlotBodyparts):
         # dpi=self.dpi, fps=self.clip.FPS
         ani.save('demo.avi', writer=writer, dpi=self.dpi)
         return ani
+
+    # def make_movie2(self, start, end):
+    #     import subprocess
+
+    #     # initlize with start frame
+    #     fig, ax = self.configure_plot()
+    #     canvas_width, canvas_height = fig.canvas.get_width_height()
+
+    #     # ax_dict = self.fitted_plot_core(fig, ax, frame_num=start)
+    #     _ = self.fitted_plot_core(fig, ax, frame_num=start)
+
+    #     plt.axis('off')
+    #     plt.tight_layout()
+    #     plt.title('frame num: ' + str(start), fontsize=30)
+
+    #     def update_frame(frame_num):
+
+    #         # clear out the axis
+    #         plt.cla()
+    #         # new_ax_dict = self.fitted_plot_core(fig, ax, frame_num=frame_num)
+    #         _ = self.fitted_plot_core(fig, ax, frame_num=frame_num)
+
+    #         plt.axis('off')
+    #         plt.tight_layout()
+    #         plt.title('frame num: ' + str(frame_num), fontsize=30)          
+
+    #     outf = 'demo1.avi'
+    #     cmdstring = ['ffmpeg', 
+    #         '-y', '-framerate', '{}'.format(self.clip.FPS),
+    #         '-s', '{}x{}'.format(canvas_width, canvas_height), # size of image string
+    #         '-pix_fmt', 'argb', # format
+    #         '-f', 'rawvideo',  '-i', '-', # tell ffmpeg to expect raw video from the pipe
+    #         '-vcodec', 'libx264',
+    #         '' outf] # output encoding
+    #     p = subprocess.Popen(cmdstring, stdin=subprocess.PIPE)
+
+    #     # Draw 1000 frames and write to the pipe
+    #     for frame in range(200,300):
+    #         print(cmdstring)
+    #         print(p)
+           
+    #         # draw the frame
+    #         update_frame(frame)
+    #         fig.canvas.draw()
+
+    #         # extract the image as an ARGB string
+    #         string = fig.canvas.tostring_argb()
+            
+    #         # write to pipe
+    #         p.stdin.write(string)
+    #         print(frame)
+
+    #     # Finish up
+    #     p.communicate()
+
+    #     return None
 
 
 # TODO build a classifier for 3 cases of eyes: closed, blurry, and open

@@ -566,10 +566,11 @@ class PupilFitting(PlotBodyparts):
             df_x_coords.index.get_level_values(0)) if 'pupil' in label]
 
         if len(pupil_labels) <= 2:
-            print('Frame number: {} has only 2 or less pupil label. Skip fitting!'.format(
-                frame_num))
+            # print('Frame number: {} has only 2 or less pupil label. Skip fitting!'.format(
+            #     frame_num))
             center = None
             radius = None
+            final_mask = mask
 
         elif len(pupil_labels) > 2:
             pupil_x = df_x_coords.loc[pupil_labels].values
@@ -589,11 +590,11 @@ class PupilFitting(PlotBodyparts):
             mask = cv2.circle(mask, center,
                               radius, color=(0, 255, 0), thickness=self.line_thickness)
 
-        # fill out the mask with 1s OUTSIDE of the mask, then invert 0 and 1
-        # for cv2.floodFill, need a mask that is 2 pixels bigger than the input image
-        new_mask = np.zeros((mask.shape[0]+2, mask.shape[1]+2), dtype=np.uint8)
-        cv2.floodFill(mask, new_mask, seedPoint=(0, 0), newVal=1)
-        final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
+            # fill out the mask with 1s OUTSIDE of the mask, then invert 0 and 1
+            # for cv2.floodFill, need a mask that is 2 pixels bigger than the input image
+            new_mask = np.zeros((mask.shape[0]+2, mask.shape[1]+2), dtype=np.uint8)
+            cv2.floodFill(mask, new_mask, seedPoint=(0, 0), newVal=1)
+            final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
 
         return {'frame': frame, 'center': center, 'radius': radius, 'pupil_label_num': len(pupil_labels), 'mask': final_mask}
 
@@ -667,7 +668,7 @@ class PupilFitting(PlotBodyparts):
 
         plt.title('frame num: ' + str(frame_num), fontsize=30)
 
-        # plt.axis('off')
+        plt.axis('off')
         plt.tight_layout()
 
         fig.canvas.draw()
@@ -715,23 +716,32 @@ class PupilFitting(PlotBodyparts):
 
         import matplotlib.animation as animation
 
-        # initlize with first frame
+        # initlize with start frame
         fig, ax = self.configure_plot()
-        ax_dict = self.fitted_plot_core(fig, ax, frame_num=start)
+        # ax_dict = self.fitted_plot_core(fig, ax, frame_num=start)
+        _ = self.fitted_plot_core(fig, ax, frame_num=start)
 
         plt.axis('off')
         plt.tight_layout()
-        plt.title('frame num: ' + str(frame_num), fontsize=30)
+        plt.title('frame num: ' + str(start), fontsize=30)
 
         def update_frame(frame_num):
-            ax_dict['frame']
+            
+            # clear out the axis
+            plt.cla()
+            # new_ax_dict = self.fitted_plot_core(fig, ax, frame_num=frame_num)
+            _ = self.fitted_plot_core(fig, ax, frame_num=frame_num)
 
-        #
+            plt.axis('off')
+            plt.tight_layout()
+            plt.title('frame num: ' + str(frame_num), fontsize=30)
+
         ani = animation.FuncAnimation(fig, update_frame, range(
-            start+1, end), interval=int(1/self.clip.FPS))
+            start+1, end))  # , interval=int(1/self.clip.FPS)
         # ani = animation.FuncAnimation(fig, self.plot_fitted_frame, 10)
-        writer = animation.writers['ffmpeg']
+        writer = animation.writers['ffmpeg'](fps=self.clip.FPS)
 
+        # dpi=self.dpi, fps=self.clip.FPS
         ani.save('demo.avi', writer=writer, dpi=self.dpi)
         return ani
 

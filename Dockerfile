@@ -66,8 +66,26 @@ RUN sudo add-apt-repository ppa:jonathonf/ffmpeg-4
 RUN sudo apt-get update
 RUN sudo apt-get install -y ffmpeg
 
-# Install ffmpeg-python
-RUN pip install ffmpeg-python
+# add ownership
+RUN sudo chown -R ${user_name}:${group_name} /work
+
+# Install ImageMagick
+RUN sudo apt-get update -y
+RUN sudo apt-get install -y curl tar file xz-utils build-essential
+RUN wget https://imagemagick.org/download/ImageMagick.tar.gz
+
+WORKDIR /work/ImageMagick
+RUN sudo chown -R ${user_name}:${group_name} /work/ImageMagick
+
+WORKDIR /work
+
+RUN tar -xzf ImageMagick.tar.gz -C ImageMagick --strip-components 1
+WORKDIR /work/ImageMagick
+
+RUN ./configure --prefix /usr/local
+RUN make
+RUN sudo make install
+RUN sudo ldconfig /usr/local/lib
 
 WORKDIR /work
 CMD ["/bin/bash"]

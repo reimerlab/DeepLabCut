@@ -75,7 +75,7 @@ class PlotBodyparts():
             path_to_cropping_config: string
                 fullpath to cropping_config.yaml file
             case: string
-                case number to plot
+                case to plot
             bodyparts: list
                 A list that contains bodyparts to plot. Each bodypart is in a string format
             shuffle: int, optional
@@ -101,7 +101,7 @@ class PlotBodyparts():
         self.path_to_video = os.path.join(
             self.project_path, 'videos', self._case_full_name + '.avi')
         self.path_to_analysis = os.path.join(
-            self.project_path, 'analysis, self._case_full_name')
+            self.project_path, 'analysis', self._case_full_name)
 
         # inference_case_list = [os.path.basename(os.path.normpath(video_path)).split(
         #     '.')[0] for video_path in list(dict(self.cropping_config).keys())]
@@ -142,7 +142,7 @@ class PlotBodyparts():
                 self._use_preset_cropping_coords = False
 
                 print(
-                    "This function cannot be called in Jupyter Notebook! Do it in IPython!")
+                    "This function cannot be called in Jupyter Notebook! Do it on IPython!")
                 print("Now the cropping coordinates are updated in cropping_config.yaml")
 
                 update_inference_cropping_config(
@@ -175,7 +175,7 @@ class PlotBodyparts():
         self.ny = self._cropping_coords[3] - self._cropping_coords[2]
 
         # plotting properties
-        self._dotsize = 5
+        self._dotsize = 7
         self._line_thickness = 1
         self._pcutoff = self.config['pcutoff']
         self._colormap = self.config['colormap']
@@ -320,7 +320,7 @@ class PlotBodyparts():
                 A desired frame number
         Output:
             bpindex: list
-                A list of integers that match with bodypart. For instance, if the bodypart is ['A','B','C'] 
+                A list of integers that match with bodypart. For instance, if the bodypart is ['A','B','C']
                 and only 'A' and 'C'qualifies the pcutoff, then bpindex = [0,2]
             x_coords: pandas series
                 A pandas series that contains coordinates whose values meet pcutoff criteria
@@ -336,7 +336,7 @@ class PlotBodyparts():
         return bpindex, df_x_coords, df_y_coords
 
     def configure_plot(self):
-        fig = plt.figure(frameon=False, figsize=self.fig_size, dpi= self.dpi)
+        fig = plt.figure(frameon=False, figsize=self.fig_size, dpi=self.dpi)
         ax = fig.add_subplot(1, 1, 1)
         plt.subplots_adjust(left=0, bottom=0, right=1,
                             top=1, wspace=0, hspace=0)
@@ -476,7 +476,7 @@ class PupilFitting(PlotBodyparts):
                 A desired frame number
         Output:
             bpindex: list
-                A list of integers that match with bodypart. For instance, if the bodypart is ['A','B','C'] 
+                A list of integers that match with bodypart. For instance, if the bodypart is ['A','B','C']
                 and only 'A' and 'C'qualifies the pcutoff, then bpindex = [0,2]
             x_coords: pandas series
                 A pandas series that contains coordinates whose values meet pcutoff criteria
@@ -549,7 +549,7 @@ class PupilFitting(PlotBodyparts):
                 A frame to be fitted
         Output: dictionary
             A dictionary with the fitted frame, center and radius of the fitted circle. If fitting did
-            not occur, return the original frame with center and raidus as None. 
+            not occur, return the original frame with center and raidus as None.
             For each key in dictionary:
                 frame: a numpy array of the frame with pupil circle
                 center: coordinates of the center of the fitted circle. In tuple format
@@ -580,19 +580,20 @@ class PupilFitting(PlotBodyparts):
 
             x, y, radius = smallest_enclosing_circle_naive(pupil_coords)
 
-            center = (int(x), int(y))
-            radius = int(radius)
+            center = (int(round(x)), int(round(y)))
+            radius = int(round(radius))
 
             # opencv has some issues with dealing with np objects. Cast it manually again
-            frame = cv2.circle(np.array(frame), center,
-                               radius, color=(0, 255, 0), thickness=self.line_thickness)
+            frame = cv2.circle(img=np.array(frame), center=center,
+                               radius=radius, color=(0, 255, 0), thickness=self.line_thickness)
 
-            mask = cv2.circle(mask, center,
-                              radius, color=(0, 255, 0), thickness=self.line_thickness)
+            mask = cv2.circle(img=mask, center=center,
+                              radius=radius, color=(0, 255, 0), thickness=self.line_thickness)
 
             # fill out the mask with 1s OUTSIDE of the mask, then invert 0 and 1
             # for cv2.floodFill, need a mask that is 2 pixels bigger than the input image
-            new_mask = np.zeros((mask.shape[0]+2, mask.shape[1]+2), dtype=np.uint8)
+            new_mask = np.zeros(
+                (mask.shape[0]+2, mask.shape[1]+2), dtype=np.uint8)
             cv2.floodFill(mask, new_mask, seedPoint=(0, 0), newVal=1)
             final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
 
@@ -742,7 +743,10 @@ class PupilFitting(PlotBodyparts):
         writer = animation.writers['ffmpeg'](fps=self.clip.FPS)
 
         # dpi=self.dpi, fps=self.clip.FPS
-        ani.save('demo.avi', writer=writer, dpi=self.dpi)
+        video_name = os.path.join(
+            self.path_to_analysis, self._case_full_name + '_labeled.avi')
+        ani.save(video_name, writer=writer, dpi=self.dpi)
+
         return ani
 
     # def make_movie2(self, start, end):
@@ -768,10 +772,10 @@ class PupilFitting(PlotBodyparts):
 
     #         plt.axis('off')
     #         plt.tight_layout()
-    #         plt.title('frame num: ' + str(frame_num), fontsize=30)          
+    #         plt.title('frame num: ' + str(frame_num), fontsize=30)
 
     #     outf = 'demo1.avi'
-    #     cmdstring = ['ffmpeg', 
+    #     cmdstring = ['ffmpeg',
     #         '-y', '-framerate', '{}'.format(self.clip.FPS),
     #         '-s', '{}x{}'.format(canvas_width, canvas_height), # size of image string
     #         '-pix_fmt', 'argb', # format
@@ -784,14 +788,14 @@ class PupilFitting(PlotBodyparts):
     #     for frame in range(200,300):
     #         print(cmdstring)
     #         print(p)
-           
+
     #         # draw the frame
     #         update_frame(frame)
     #         fig.canvas.draw()
 
     #         # extract the image as an ARGB string
     #         string = fig.canvas.tostring_argb()
-            
+
     #         # write to pipe
     #         p.stdin.write(string)
     #         print(frame)
@@ -803,7 +807,6 @@ class PupilFitting(PlotBodyparts):
 
 
 # TODO build a classifier for 3 cases of eyes: closed, blurry, and open
-
 
 class EyeStatus():
     def __init__():

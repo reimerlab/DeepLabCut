@@ -189,6 +189,12 @@ def update_inference_cropping_config(cropping_config, video_path):
 
         plt.show()
 
+        # Enforce that both width and height are even numbers for ffmpeg purpose
+        if new_width % 2:
+            display.xstart -= 1
+        if new_height % 2:
+            display.ystart -= 1
+
         new_width = display.xend - display.xstart
         new_height = display.yend - display.ystart
 
@@ -206,7 +212,7 @@ def update_inference_cropping_config(cropping_config, video_path):
         # Update the yaml config file
         yaml = ruamel.yaml.YAML()
 
-        yaml.dump(cfg,config_file)
+        yaml.dump(cfg, config_file)
 
         return [int(display.xstart), int(display.xend), int(display.ystart), int(display.yend)]
 
@@ -214,3 +220,40 @@ def update_inference_cropping_config(cropping_config, video_path):
         print("Cannot open the video file: {} !".format(video_path))
 
 
+def crop_videos(cropping_config, case):
+    from subprocess import Popen, PIPE
+
+    config_file = Path(cropping_config).resolve()
+    cfg = auxiliaryfunctions.read_config(config_file)
+
+    suffix = '_compressed_cropped_beh.avi'
+
+    proj_dir = os.path.join(
+        os.sep, 'work', 'pupil_track-Donnie-2019-02-12')
+    video_path = os.path.join(proj_dir, 'videos', case + '_beh.avi')
+
+    out_vid = case + suffix
+    out_vid_path = os.path.join(os.sep, 'work', 'videos', out_vid)
+
+    if video_path not in dict(cfg).keys():
+        raise KeyError(
+            "Case: {} not in cropping_config.yaml. Did you add it yet?".format(case))
+
+    if case+suffix in video_dir:
+        print('case: {} is already cropped!'.format(case))
+        return None
+
+    xstart, xend, ystart, yend = list(dict(cfg)[video_path].values())[1:]
+    out_w = xend - xstart
+    out_h = yend - ystart
+
+    cmd = ['ffmpeg', '-i', '{}'.format(video_path), '-vcodec', 'libx264', '-crf', '20', '-filter:v',
+           "crop={}:{}:{}:{}".format(out_w, out_h, xstart, ystart), '{}'.format(out_vid_path)]
+
+    # call ffmpeg to crop and compress
+    p = Popen(cmd, stdin=PIPE)
+    # close ffmpeg
+    p.wait()
+
+    
+    # ffmpeg - i 17797_3_00006_beh.avi - vcodec libx264 - crf 20 - filter: v "crop=516:328:1072:598" 17797_3_00006_compressed_cropped_beh.avi

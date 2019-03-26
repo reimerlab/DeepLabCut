@@ -189,14 +189,16 @@ def update_inference_cropping_config(cropping_config, video_path):
 
         plt.show()
 
+        new_width = display.xend - display.xstart
+        new_height = display.yend - display.ystart
+
         # Enforce that both width and height are even numbers for ffmpeg purpose
         if new_width % 2:
             display.xstart -= 1
+            new_width = display.xend - display.xstart
         if new_height % 2:
             display.ystart -= 1
-
-        new_width = display.xend - display.xstart
-        new_height = display.yend - display.ystart
+            new_height = display.yend - display.ystart
 
         print("your cropped coords are {} {} {} {} with dim of {} by {} \n".format(
             display.xstart, display.xend, display.ystart, display.yend, new_width, new_height))
@@ -228,14 +230,13 @@ def crop_videos(cropping_config, case):
 
     suffix = '_compressed_cropped_beh.avi'
 
-    proj_dir = os.path.join(
-        os.sep, 'work', 'pupil_track-Donnie-2019-02-12')
-    video_path = os.path.join(proj_dir, 'videos', case + '_beh.avi')
+    video_dir = os.path.join(os.sep, 'work', 'videos')
+    input_video_path = os.path.join(video_dir, case + '_beh.avi')
 
-    out_vid = case + suffix
-    out_vid_path = os.path.join(os.sep, 'work', 'videos', out_vid)
+    output_vid = case + suffix
+    out_vid_path = os.path.join(os.sep, 'work', 'videos', output_vid)
 
-    if video_path not in dict(cfg).keys():
+    if input_video_path not in dict(cfg).keys():
         raise KeyError(
             "Case: {} not in cropping_config.yaml. Did you add it yet?".format(case))
 
@@ -243,11 +244,11 @@ def crop_videos(cropping_config, case):
         print('case: {} is already cropped!'.format(case))
         return None
 
-    xstart, xend, ystart, yend = list(dict(cfg)[video_path].values())[1:]
+    xstart, xend, ystart, yend = list(dict(cfg)[input_video_path].values())[1:]
     out_w = xend - xstart
     out_h = yend - ystart
 
-    cmd = ['ffmpeg', '-i', '{}'.format(video_path), '-vcodec', 'libx264', '-crf', '20', '-filter:v',
+    cmd = ['ffmpeg', '-i', '{}'.format(input_video_path), '-vcodec', 'libx264', '-crf', '20', '-filter:v',
            "crop={}:{}:{}:{}".format(out_w, out_h, xstart, ystart), '{}'.format(out_vid_path)]
 
     # call ffmpeg to crop and compress

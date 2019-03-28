@@ -9,6 +9,7 @@ import os
 import numpy as np
 import time
 import imageio
+import datajoint as dj
 from collections import OrderedDict
 from itertools import cycle
 from DLC_tool_DK.cropping_tool import update_inference_cropping_config
@@ -32,6 +33,17 @@ def get_frame(path_to_video, frame_num):
     _, img = cap.read()
     cap.release()
     return img
+
+
+def key_dict_generater(case):
+    case_key = {'animal_id': None, 'session': None, 'scan_idx': None}
+    for ind, key in enumerate(case_key.keys()):
+        case_key[key] = int(case.split('_')[ind])
+
+    return case_key
+
+
+pupil_table = dj.create_virtual_module('pupil_table', 'pipeline_eye')
 
 
 def bodyparts_info(config, case, bodyparts, trainingsetindex=0, shuffle=1):
@@ -465,8 +477,19 @@ class PupilFitting(PlotBodyparts):
                                       'eyelid_left': 'eyelid_left_top',
                                       'eyelid_left_top': 'eyelid_top'}
 
-    def old_plot_fitted_frame(self, frame_num, save_fig=False, save_gif=False):
-        pass
+    def old_fit_circle_to_pupil(self, frame_num, frame):
+        case_key = key_dict_generater(self.case)
+        old_center, old_radius = (
+            pupil_table.FittedContour.Ellipse & case_key).fetch('center', 'major_r')
+
+        radius = int(round(old_radius[frame_num]))
+        center = (int(round(old_center[frame_num][0])), int(
+            round(old_center[frame_num][1])))
+
+        frame = cv2.circle(frame, center=center, radius=radius,
+                           color=(0, 0, 255), thickness=1)
+
+        return {'frame': frame, 'radius': radius, 'center': radius}
 
     def coords_pcutoff(self, frame_num):
         """
@@ -686,7 +709,7 @@ class PupilFitting(PlotBodyparts):
 
         for frame_num in range(start, end):
 
-            ax_dict = self.fitted_plot_core(fig, ax, frame_num)
+            _ = self.fitted_plot_core(fig, ax, frame_num)
 
             plt.axis('off')
             plt.tight_layout()
@@ -749,64 +772,8 @@ class PupilFitting(PlotBodyparts):
 
         return ani
 
-    # def make_movie2(self, start, end):
-    #     import subprocess
-
-    #     # initlize with start frame
-    #     fig, ax = self.configure_plot()
-    #     canvas_width, canvas_height = fig.canvas.get_width_height()
-
-    #     # ax_dict = self.fitted_plot_core(fig, ax, frame_num=start)
-    #     _ = self.fitted_plot_core(fig, ax, frame_num=start)
-
-    #     plt.axis('off')
-    #     plt.tight_layout()
-    #     plt.title('frame num: ' + str(start), fontsize=30)
-
-    #     def update_frame(frame_num):
-
-    #         # clear out the axis
-    #         plt.cla()
-    #         # new_ax_dict = self.fitted_plot_core(fig, ax, frame_num=frame_num)
-    #         _ = self.fitted_plot_core(fig, ax, frame_num=frame_num)
-
-    #         plt.axis('off')
-    #         plt.tight_layout()
-    #         plt.title('frame num: ' + str(frame_num), fontsize=30)
-
-    #     outf = 'demo1.avi'
-    #     cmdstring = ['ffmpeg',
-    #         '-y', '-framerate', '{}'.format(self.clip.FPS),
-    #         '-s', '{}x{}'.format(canvas_width, canvas_height), # size of image string
-    #         '-pix_fmt', 'argb', # format
-    #         '-f', 'rawvideo',  '-i', '-', # tell ffmpeg to expect raw video from the pipe
-    #         '-vcodec', 'libx264',
-    #         '' outf] # output encoding
-    #     p = subprocess.Popen(cmdstring, stdin=subprocess.PIPE)
-
-    #     # Draw 1000 frames and write to the pipe
-    #     for frame in range(200,300):
-    #         print(cmdstring)
-    #         print(p)
-
-    #         # draw the frame
-    #         update_frame(frame)
-    #         fig.canvas.draw()
-
-    #         # extract the image as an ARGB string
-    #         string = fig.canvas.tostring_argb()
-
-    #         # write to pipe
-    #         p.stdin.write(string)
-    #         print(frame)
-
-    #     # Finish up
-    #     p.communicate()
-
-    #     return None
-
-
 # TODO build a classifier for 3 cases of eyes: closed, blurry, and open
+
 
 class EyeStatus():
     def __init__():

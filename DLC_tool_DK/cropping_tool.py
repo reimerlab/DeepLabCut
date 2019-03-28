@@ -248,7 +248,7 @@ def crop_videos(cropping_config, case):
     out_w = xend - xstart
     out_h = yend - ystart
 
-    cmd = ['ffmpeg', '-i', '{}'.format(input_video_path), '-vcodec', 'libx264', '-crf', '20', '-filter:v',
+    cmd = ['ffmpeg', '-i', '{}'.format(input_video_path), '-vcodec', 'libx264', '-crf', '17', '-intra', '-filter:v',
            "crop={}:{}:{}:{}".format(out_w, out_h, xstart, ystart), '{}'.format(out_vid_path)]
 
     # call ffmpeg to crop and compress

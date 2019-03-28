@@ -477,20 +477,6 @@ class PupilFitting(PlotBodyparts):
                                       'eyelid_left': 'eyelid_left_top',
                                       'eyelid_left_top': 'eyelid_top'}
 
-    def old_fit_circle_to_pupil(self, frame_num, frame):
-        case_key = key_dict_generater(self.case)
-        old_center, old_radius = (
-            pupil_table.FittedContour.Ellipse & case_key).fetch('center', 'major_r')
-
-        radius = int(round(old_radius[frame_num]))
-        center = (int(round(old_center[frame_num][0])), int(
-            round(old_center[frame_num][1])))
-
-        frame = cv2.circle(frame, center=center, radius=radius,
-                           color=(0, 0, 255), thickness=1)
-
-        return {'frame': frame, 'radius': radius, 'center': radius}
-
     def coords_pcutoff(self, frame_num):
         """
         Given a frame number, return bpindex, x & y coordinates that meet pcutoff criteria
@@ -561,6 +547,22 @@ class PupilFitting(PlotBodyparts):
 
         # ax.imshow(mask)
         return {'frame': frame, 'mask': final_mask}
+
+    def old_fit_circle_to_pupil(self, frame_num, frame):
+        case_key = key_dict_generater(self.case)
+        old_center, old_radius = (
+            pupil_table.FittedContour.Ellipse & case_key).fetch('center', 'major_r')
+        print(case_key)
+        print(old_center)
+
+        radius = int(round(old_radius[frame_num]))
+        center = (int(round(old_center[frame_num][0])), int(
+            round(old_center[frame_num][1])))
+
+        frame = cv2.circle(frame, center=center, radius=radius,
+                           color=(0, 0, 255), thickness=1)
+
+        return {'frame': frame, 'radius': radius, 'center': radius}
 
     def fit_circle_to_pupil(self, frame_num, frame):
         """
@@ -771,6 +773,52 @@ class PupilFitting(PlotBodyparts):
         ani.save(video_name, writer=writer, dpi=self.dpi)
 
         return ani
+
+    def compare_fitted_plot_core(self, fig, ax, frame_num):
+        # it's given in 3 channels but every channel is the same i.e. grayscale
+
+        image = self.clip._read_specific_frame(frame_num)
+
+        if self._cropping:
+
+            x1 = self._cropping_coords[0]
+            x2 = self._cropping_coords[1]
+            y1 = self._cropping_coords[2]
+            y2 = self._cropping_coords[3]
+
+            image = image[y1:y2, x1:x2]
+
+        # plot bodyparts above the pcutoff
+        bpindex, x_coords, y_coords = self.coords_pcutoff(frame_num)
+        ax_scatter = ax.scatter(x_coords.values, y_coords.values, s=self.dotsize**2,
+                                color=self._label_colors(bpindex), alpha=self.alphavalue)
+
+        eyelid_connected = self.connect_eyelids(frame_num, frame=image)
+
+        pupil_fitted = self.fit_circle_to_pupil(
+            frame_num, frame=eyelid_connected['frame'])
+
+        old_pupil_fitted = self.old_fit_circle_to_pupil(frame_num = frame_num, frame=pupil_fitted['frame'])
+
+        ax_frame = ax.imshow(old_pupil_fitted['frame'])
+
+        return {'ax_frame': ax_frame, 'ax_scatter': ax_scatter}
+
+    def plot_compare_fitted_frame(self, frame_num, save_fig=False):
+
+        fig, ax = self.configure_plot()
+        ax_dict = self.compare_fitted_plot_core(fig, ax, frame_num)
+
+        plt.title('frame num: ' + str(frame_num), fontsize=30)
+
+        plt.axis('off')
+        plt.tight_layout()
+
+        fig.canvas.draw()
+
+        if save_fig:
+            plt.savefig(os.path.join(
+                self.label_path, 'fitted_frame_' + str(frame_num) + '.png'))
 
 # TODO build a classifier for 3 cases of eyes: closed, blurry, and open
 

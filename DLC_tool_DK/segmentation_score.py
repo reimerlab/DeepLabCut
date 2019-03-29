@@ -29,13 +29,14 @@ def dice_coeff(ground_img, predicted_img):
 
     img_sum = ground_img.sum() + predicted_img.sum()
     if img_sum == 0:
-        print("sum of two images is equal to 1. Return 0")
+        print("sum of two images is equal to 0. Return 0")
         return 0.0
 
     # Compute Dice coefficient
     intersection = np.logical_and(ground_img, predicted_img)
 
     return 2. * intersection.sum() / img_sum
+
 
 def jaccard_index(ground_img, predicted_img):
     """
@@ -59,7 +60,14 @@ def jaccard_index(ground_img, predicted_img):
 
     intersection = np.logical_and(ground_img, predicted_img)
 
-    return intersection.sum() / (ground_img.sum() + predicted_img.sum() - intersection.sum())
+    denominator = (ground_img.sum() + predicted_img.sum() - intersection.sum())
+
+    if denominator == 0:
+        print("denominator is equal to 0. Return 0")
+        return 0.0
+
+    return intersection.sum() / denominator
+
 
 def sensitivity_score(ground_img, predicted_img):
     """
@@ -83,7 +91,8 @@ def sensitivity_score(ground_img, predicted_img):
 
     intersection = np.logical_and(ground_img, predicted_img)
 
-    return intersection.sum() / ground_img.sum() 
+    return intersection.sum() / ground_img.sum()
+
 
 def precision_score(ground_img, predicted_img):
     """
@@ -107,21 +116,13 @@ def precision_score(ground_img, predicted_img):
 
     intersection = np.logical_and(ground_img, predicted_img)
 
-    return intersection.sum() /  predicted_img.sum()
+    return intersection.sum() / predicted_img.sum()
 
 
-class SegmentationScore():
-    """
-    compute various score given ground truth image and predicted image
-    """
-    def __init__(self):
-        self.dice_coeff = None
-        self.jaccard_index = None
-        self.sensitivty = None
-        self.precision = None
+def compute_segmentation_score(ground_img, predicted_img):
+    dice = dice_coeff(ground_img, predicted_img)
+    jaccard = jaccard_index(ground_img, predicted_img)
+    sensitivity = sensitivity_score(ground_img, predicted_img)
+    precision = precision_score(ground_img, predicted_img)
 
-    def compute_metrics(self, ground_img, predicted_img):
-        self.dice_coeff = dice_coeff(ground_img, predicted_img)
-        self.jaccard_index = jaccard_index(ground_img, predicted_img)
-        self.sensitivity = sensitivity_score(ground_img, predicted_img)
-        self.precision = precision_score(ground_img, predicted_img)
+    return {'dice_coeff': dice, 'jaccard_index': jaccard, 'sensitivity': sensitivity, 'precision': precision}

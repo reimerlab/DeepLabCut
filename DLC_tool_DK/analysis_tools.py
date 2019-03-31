@@ -243,8 +243,7 @@ class CompareFittingMethod(PupilFitting):
     def make_movie(self, start, end, save_as_avi=False, save_as_gif=False):
 
         if save_as_gif:
-            assert (
-                end-start) < 30, "If more than 30 frames, make it into avi, not gif!"
+            assert (end-start) < 30, "If more than 30 frames, make it into avi, not gif!"
 
         import matplotlib.animation as animation
 
@@ -298,8 +297,10 @@ class CompareFittingMethod(PupilFitting):
         """
 
         score_mat = np.zeros(shape=(self.clip.nframes, 4))
+        # score_mat = np.zeros(shape=(1000, 4))
 
         for frame_num in range(self.clip.nframes):
+        # for frame_num in range(score_mat.shape[0]):
 
             _, df_x_coords, df_y_coords = self.coords_pcutoff(frame_num)
 
@@ -307,8 +308,7 @@ class CompareFittingMethod(PupilFitting):
                 df_x_coords.index.get_level_values(0)) if 'pupil' in label]
 
             if self.old_center[frame_num] is not None and len(pupil_labels) > 2:
-                
-                # obtain 2D image
+
                 image = self.clip._read_specific_frame(frame_num)
 
                 if self._cropping:
@@ -321,9 +321,9 @@ class CompareFittingMethod(PupilFitting):
                     image = image[y1:y2, x1:x2]
 
                 ground_mask = self.old_fit_circle_to_pupil(
-                    frame_num=frame_num, frame=image)
+                    frame_num=frame_num, frame=image)['mask']
                 predicted_mask = self.fit_circle_to_pupil(
-                    frame_num=frame_num, frame=image)
+                    frame_num=frame_num, frame=image)['mask']
 
                 score_dict = compute_segmentation_score(
                     ground_mask, predicted_mask)

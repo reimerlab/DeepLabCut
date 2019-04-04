@@ -44,3 +44,29 @@ services:
       - USER_HOME=/DeepLabCut
     entrypoint:
       - /bin/bash
+
+  bokeh_app:
+    image: "deeplabcut-work-image:2.0.5-ImageMagick"
+    runtime: nvidia
+    ports:
+      - "5006:5006"
+    volumes:
+      - /mnt/:/mnt/
+        #      - /home/pipeline_data/:/tmp/
+        #        - /home/pipeline_data/:/mnt/data/
+        #      - $HOME/Documents/pipeline/:/data/pipeline/
+        #      - .:/data/DeepLabCut
+      - /home/donnie/Documents/Repos/DeepLabCut:/work/
+      - /home/donnie/Documents/Repos/DLC_tool_DK:/work/
+      - /etc/localtime:/etc/localtime:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    env_file: .env
+    working_dir: /work/
+    environment:
+      - DISPLAY=$DISPLAY
+      - USER_HOME=/DeepLabCut
+    entrypoint:
+      - bokeh
+      - serve
+      - --allow-websocket-origin=10.21.17.1:5006
+      - myapp.py

@@ -53,7 +53,12 @@ RUN sudo apt-get install -y libgtk2.0-dev libgtk-3-dev \
 
 # Install plotly and bokeh for plotting interactive plotting in jupyter
 RUN pip install plotly 
-RUN pip install bokeh
+RUN pip install bokeh==1.0.4
+RUN pip install colorcet==1.0.1
+
+# install seaborn and pandas
+RUN pip install seaborn
+RUN pip install pandas
 
 # Install datajoint
 RUN pip install datajoint

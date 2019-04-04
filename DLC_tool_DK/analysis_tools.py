@@ -127,7 +127,7 @@ class CompareFittingMethod(PupilFitting):
 
         return {'frame': frame, 'mask': final_mask}
 
-    def compare_fitted_plot_core(self, fig, ax, frame_num):
+    def compare_fitted_plot_core(self, fig, ax, frame_num, only_circles=False):
         # it's given in 3 channels but every channel is the same i.e. grayscale
 
         image = self.clip._read_specific_frame(frame_num)
@@ -143,56 +143,69 @@ class CompareFittingMethod(PupilFitting):
 
         # plot bodyparts above the pcutoff
         bpindex, x_coords, y_coords = self.coords_pcutoff(frame_num)
-        ax_scatter = ax.scatter(x_coords.values, y_coords.values, s=self.dotsize**2,
-                                color=self._label_colors(bpindex), alpha=self.alphavalue)
 
-        eyelid_connected = self.connect_eyelids(frame_num, frame=image)
+        if only_circles:
+            pupil_fitted = self.fit_circle_to_pupil(
+                frame_num, frame=image)
+            old_pupil_fitted = self.old_fit_circle_to_pupil(
+                frame_num=frame_num, frame=pupil_fitted['frame'])
+                
+            ax_frame = ax.imshow(old_pupil_fitted['frame'])
 
-        pupil_fitted = self.fit_circle_to_pupil(
-            frame_num, frame=eyelid_connected['frame'])
+            return {'ax_frame': ax_frame}
+            
 
-        old_pupil_fitted = self.old_fit_circle_to_pupil(
-            frame_num=frame_num, frame=pupil_fitted['frame'])
+        if not only_circles:
+            ax_scatter = ax.scatter(x_coords.values, y_coords.values, s=self.dotsize**2,
+                                    color=self._label_colors(bpindex), alpha=self.alphavalue)
 
-        ax_frame = ax.imshow(old_pupil_fitted['frame'])
+            eyelid_connected = self.connect_eyelids(frame_num, frame=image)
 
-        color_mask = np.zeros(shape=image.shape, dtype=np.uint8)
-        if pupil_fitted['pupil_label_num'] >= 3:
-            visible_mask = np.logical_and(
-                pupil_fitted['mask'], eyelid_connected['mask']).astype(int)
+            pupil_fitted = self.fit_circle_to_pupil(
+                frame_num, frame=eyelid_connected['frame'])
 
-            # 126,0,255 for the color
-            color_mask[visible_mask == 1, 0] = 126
-            color_mask[visible_mask == 1, 2] = 255
+            old_pupil_fitted = self.old_fit_circle_to_pupil(
+                frame_num=frame_num, frame=pupil_fitted['frame'])
 
-            # plot center
-            ax.scatter(pupil_fitted['center'][0], pupil_fitted['center']
-                       [1], color='lime', label='DLC circle')
+            ax_frame = ax.imshow(old_pupil_fitted['frame'])
 
-        ax_mask = ax.imshow(color_mask, alpha=0.3)
+            color_mask = np.zeros(shape=image.shape, dtype=np.uint8)
+            if pupil_fitted['pupil_label_num'] >= 3:
+                visible_mask = np.logical_and(
+                    pupil_fitted['mask'], eyelid_connected['mask']).astype(int)
 
-        if self.old_center[frame_num] is not None:
+                # 126,0,255 for the color
+                color_mask[visible_mask == 1, 0] = 126
+                color_mask[visible_mask == 1, 2] = 255
 
-            ax_contour_scatter = ax.scatter(
-                self.old_contour[frame_num][:,
-                                            0], self.old_contour[frame_num][:, 1],
-                color=[51./255, 51./255, 0], alpha=1, s=10, label='old contour')
+                # plot center
+                ax.scatter(pupil_fitted['center'][0], pupil_fitted['center']
+                        [1], color='lime', label='DLC circle')
 
-            # in matplotlib, colors must be given between 0 and 1 in RGB order
+            ax_mask = ax.imshow(color_mask, alpha=0.3)
 
-            ax.scatter(self.old_center[frame_num][0], self.old_center[frame_num]
-                       [1], color='blue', label='non-DLC circle')
+            if self.old_center[frame_num] is not None:
 
-            ax.legend(loc='upper left')
-        else:
-            ax_contour_scatter = ax.scatter([], [])
+                ax_contour_scatter = ax.scatter(
+                    self.old_contour[frame_num][:,
+                                                0], self.old_contour[frame_num][:, 1],
+                    color=[51./255, 51./255, 0], alpha=1, s=10, label='old contour')
 
-        return {'ax_frame': ax_frame, 'ax_scatter': ax_scatter, 'ax_contour_scatter': ax_contour_scatter, 'ax_mask': ax_mask}
+                # in matplotlib, colors must be given between 0 and 1 in RGB order
 
-    def plot_compare_fitted_frame(self, frame_num, save_fig=False):
+                ax.scatter(self.old_center[frame_num][0], self.old_center[frame_num]
+                        [1], color='blue', label='non-DLC circle')
+
+                ax.legend(loc='upper left')
+            else:
+                ax_contour_scatter = ax.scatter([], [])
+
+            return {'ax_frame': ax_frame, 'ax_scatter': ax_scatter, 'ax_contour_scatter': ax_contour_scatter, 'ax_mask': ax_mask}
+
+    def plot_compare_fitted_frame(self, frame_num, only_circles=False, save_fig=False):
 
         fig, ax = self.configure_plot()
-        _ = self.compare_fitted_plot_core(fig, ax, frame_num)
+        _ = self.compare_fitted_plot_core(fig, ax, frame_num, only_circles)
 
         plt.title('frame num: ' + str(frame_num), fontsize=30)
 
@@ -205,7 +218,7 @@ class CompareFittingMethod(PupilFitting):
             plt.savefig(os.path.join(
                 self.label_path, 'fitted_frame_' + str(frame_num) + '.png'))
 
-    def plot_compare_fitted_multi_frames(self, start, end, save_gif=False):
+    def plot_compare_fitted_multi_frames(self, start, end, only_circles=False, save_gif=False):
 
         fig, ax = self.configure_plot()
 
@@ -213,7 +226,7 @@ class CompareFittingMethod(PupilFitting):
 
         for frame_num in range(start, end):
 
-            _ = self.compare_fitted_plot_core(fig, ax, frame_num)
+            _ = self.compare_fitted_plot_core(fig, ax, frame_num, only_circles)
 
             plt.axis('off')
             plt.tight_layout()

@@ -590,15 +590,14 @@ class PupilFitting(PlotBodyparts):
 
             x, y, radius = smallest_enclosing_circle_naive(pupil_coords)
 
-            center = (int(round(x)), int(round(y)))
-            radius = int(round(radius))
+            center = (x,y)
 
             # opencv has some issues with dealing with np objects. Cast it manually again
-            frame = cv2.circle(img=np.array(frame), center=center,
-                               radius=radius, color=(0, 255, 0), thickness=self.line_thickness)
+            frame = cv2.circle(img=np.array(frame), center=(int(round(x)), int(round(y))),
+                               radius=int(round(radius)), color=(0, 255, 0), thickness=self.line_thickness)
 
-            mask = cv2.circle(img=mask, center=center,
-                              radius=radius, color=(0, 255, 0), thickness=self.line_thickness)
+            mask = cv2.circle(img=mask, center=(int(round(x)), int(round(y))),
+                              radius=int(round(radius)), color=(0, 255, 0), thickness=self.line_thickness)
 
             # fill out the mask with 1s OUTSIDE of the mask, then invert 0 and 1
             # for cv2.floodFill, need a mask that is 2 pixels bigger than the input image
@@ -608,6 +607,106 @@ class PupilFitting(PlotBodyparts):
             final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
 
         return {'frame': frame, 'center': center, 'radius': radius, 'pupil_label_num': len(pupil_labels), 'mask': final_mask}
+
+
+    def fitting_test(self, frame_num, frame):
+        """
+        Fit a circle to the pupil
+        Input:
+            frame_num: int
+                A desired frame number
+            frame: numpy array
+                A frame to be fitted 3D
+        Output: dictionary
+            A dictionary with the fitted frame, center and radius of the fitted circle. If fitting did
+            not occur, return the original frame with center and raidus as None.
+            For each key in dictionary:
+                frame: a numpy array of the frame with pupil circle
+                center: coordinates of the center of the fitted circle. In tuple format
+                radius: radius of the fitted circle in int format
+                pupil_label_num: number of pupil labels used for fitting
+                mask: a binary mask for the fitted circle area
+        """
+
+        mask = np.zeros(frame.shape, dtype=np.uint8)
+
+        _, df_x_coords, df_y_coords = self.coords_pcutoff(frame_num)
+
+        pupil_labels = [label for label in list(
+            df_x_coords.index.get_level_values(0)) if 'pupil' in label]
+
+        if len(pupil_labels) <= 2:
+            # print('Frame number: {} has only 2 or less pupil label. Skip fitting!'.format(
+            #     frame_num))
+            center = None
+            major_radius = None
+            minor_radius = None
+            rotation_angle = None
+            final_mask = mask[:,:,0]
+
+        elif len(pupil_labels) > 2 and len(pupil_labels) < 8:
+            pupil_x = df_x_coords.loc[pupil_labels].values
+            pupil_y = df_y_coords.loc[pupil_labels].values
+
+            pupil_coords = list(zip(pupil_x, pupil_y))
+
+            x, y, radius = smallest_enclosing_circle_naive(pupil_coords)
+
+            center = (x,y)
+            major_radius = radius
+            minor_radius = radius
+            rotation_angle = 0
+
+            # opencv has some issues with dealing with np objects. Cast it manually again
+            frame = cv2.circle(img=np.array(frame), center=(int(round(x)), int(round(y))),
+                               radius=int(round(radius)), color=(0, 255, 0), thickness=self.line_thickness)
+
+            mask = cv2.circle(img=mask, center=(int(round(x)), int(round(y))),
+                              radius=int(round(radius)), color=(0, 255, 0), thickness=self.line_thickness)
+
+            # fill out the mask with 1s OUTSIDE of the mask, then invert 0 and 1
+            # for cv2.floodFill, need a mask that is 2 pixels bigger than the input image
+            new_mask = np.zeros(
+                (mask.shape[0]+2, mask.shape[1]+2), dtype=np.uint8)
+            cv2.floodFill(mask, new_mask, seedPoint=(0, 0), newVal=1)
+            final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
+        
+        else:
+            pupil_x = df_x_coords.loc[pupil_labels].values.round().astype(np.int32)
+            pupil_y = df_y_coords.loc[pupil_labels].values.round().astype(np.int32)
+
+            pupil_coords = np.array(list(zip(pupil_x, pupil_y))).reshape((-1,1,2))
+
+            # https://docs.opencv.org/2.4/modules/imgproc/doc/structural_analysis_and_shape_descriptors.html#fitellipse
+            # Python: cv.FitEllipse2(points) → Box2D
+            # https://docs.opencv.org/3.4.5/db/dd6/classcv_1_1RotatedRect.html
+            rotated_rect = cv2.fitEllipse(pupil_coords)
+
+            # https://docs.opencv.org/3.0-beta/modules/imgproc/doc/drawing_functions.html#ellipse
+            # cv2.ellipse(img, box, color[, thickness[, lineType]]) → img
+            frame = cv2.ellipse(np.array(frame), rotated_rect, color=(0,0,255), thickness=self.line_thickness)
+            mask = cv2.ellipse(np.array(frame), rotated_rect, color=(0,0,255), thickness=self.line_thickness)
+
+            # fill out the mask with 1s OUTSIDE of the mask, then invert 0 and 1
+            # for cv2.floodFill, need a mask that is 2 pixels bigger than the input image
+            new_mask = np.zeros(
+                (mask.shape[0]+2, mask.shape[1]+2), dtype=np.uint8)
+            cv2.floodFill(mask, new_mask, seedPoint=(0, 0), newVal=1)
+            final_mask = np.logical_not(new_mask).astype(int)[1:-1, 1:-1]
+
+            center = rotated_rect[0]
+            major_radius = rotated_rect[1][1]/2.0
+            minor_radius = rotated_rect[1][0]/2.0
+            rotation_angle = rotated_rect[2]
+            
+        return {'frame': frame, 'center': center, 
+                'mask': final_mask,
+                'pupil_label_num': len(pupil_labels),
+                'major_radius': major_radius, 
+                'minor_radius': minor_radius,
+                'rotation_angle': rotation_angle
+                }
+
 
     def detect_visible_pupil(self, frame_num, frame):
         """
@@ -646,8 +745,6 @@ class PupilFitting(PlotBodyparts):
             y2 = self._cropping_coords[3]
 
             image = image[y1:y2, x1:x2]
-
-        print(image.shape)
 
         # plot bodyparts above the pcutoff
         bpindex, x_coords, y_coords = self.coords_pcutoff(frame_num)

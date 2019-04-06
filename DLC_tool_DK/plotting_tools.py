@@ -609,7 +609,7 @@ class PupilFitting(PlotBodyparts):
         return {'frame': frame, 'center': center, 'radius': radius, 'pupil_label_num': len(pupil_labels), 'mask': final_mask}
 
 
-    def fitting_test(self, frame_num, frame):
+    def fitting_test(self, frame_num, frame, threshold):
         """
         Fit a circle to the pupil
         Input:
@@ -644,7 +644,7 @@ class PupilFitting(PlotBodyparts):
             rotation_angle = None
             final_mask = mask[:,:,0]
 
-        elif len(pupil_labels) > 2 and len(pupil_labels) < 8:
+        elif len(pupil_labels) > 2 and len(pupil_labels) < threshold:
             pupil_x = df_x_coords.loc[pupil_labels].values
             pupil_y = df_y_coords.loc[pupil_labels].values
 

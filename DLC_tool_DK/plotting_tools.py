@@ -25,24 +25,6 @@ import pylab as pl
 from IPython import display
 import matplotlib.pyplot as plt
 
-#TODO when image recieved, make it consistent whether it is 3D or 2D
-
-def get_frame(path_to_video, frame_num):
-    cap = cv2.VideoCapture(path_to_video)
-    cap.open(path_to_video)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num)
-    _, img = cap.read()
-    cap.release()
-    return img
-
-
-def key_dict_generater(case):
-    case_key = {'animal_id': None, 'session': None, 'scan_idx': None}
-    for ind, key in enumerate(case_key.keys()):
-        case_key[key] = int(case.split('_')[ind])
-
-    return case_key
-
 
 pupil_table = dj.create_virtual_module('pupil_table', 'pipeline_eye')
 
@@ -609,14 +591,14 @@ class PupilFitting(PlotBodyparts):
         return {'frame': frame, 'center': center, 'radius': radius, 'pupil_label_num': len(pupil_labels), 'mask': final_mask}
 
 
-    def fitting_test(self, frame_num, frame, threshold):
+    def fit_ellipse_to_pupil(self, frame_num, frame, threshold=6):
         """
         Fit a circle to the pupil
         Input:
             frame_num: int
                 A desired frame number
             frame: numpy array
-                A frame to be fitted 3D
+                A frame to be fitted in 3D
         Output: dictionary
             A dictionary with the fitted frame, center and radius of the fitted circle. If fitting did
             not occur, return the original frame with center and raidus as None.

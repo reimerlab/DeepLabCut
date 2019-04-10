@@ -2,7 +2,7 @@ version: '2.3'
 
 services:
   notebook:
-    image: "deeplabcut-work-image:2.0.5-ImageMagick"
+    image: "deeplabcut:2.0.5-pipeline"
     runtime: nvidia
     ports:
       - "8888:8888"
@@ -11,10 +11,9 @@ services:
         #      - /home/pipeline_data/:/tmp/
         #      - $HOME/Documents/pipeline/:/data/pipeline/
         #      - .:/data/DeepLabCut
-      - /home/donnie/Documents/Repos/DeepLabCut:/work/
-      - /home/donnie/Documents/Repos/DLC_tool_DK:/work/
+      - /home/donnie/Documents/Repos/DeepLabCut:/data/
     env_file: .env
-    working_dir: /work/
+    working_dir: /data/
     environment:
       - DISPLAY=$DISPLAY
     entrypoint:
@@ -26,7 +25,7 @@ services:
       - --no-browser
   
   bash:
-    image: "deeplabcut-work-image:2.0.5-ImageMagick"
+    image: "deeplabcut:2.0.5-pipeline"
     runtime: nvidia
     volumes:
       - /mnt/:/mnt/
@@ -46,7 +45,7 @@ services:
       - /bin/bash
 
   bokeh_app:
-    image: "deeplabcut-work-image:2.0.5-ImageMagick"
+    image: "deeplabcut:2.0.5-pipeline"
     runtime: nvidia
     ports:
       - "5006:5006"
@@ -56,12 +55,12 @@ services:
         #        - /home/pipeline_data/:/mnt/data/
         #      - $HOME/Documents/pipeline/:/data/pipeline/
         #      - .:/data/DeepLabCut
-      - /home/donnie/Documents/Repos/DeepLabCut:/work/
-      - /home/donnie/Documents/Repos/DLC_tool_DK:/work/
+      - /home/donnie/Documents/Repos/DeepLabCut:/data/
+      - /home/donnie/Documents/Repos/DLC_tool_DK:/data/
       - /etc/localtime:/etc/localtime:ro
       - /tmp/.X11-unix:/tmp/.X11-unix
     env_file: .env
-    working_dir: /work/
+    working_dir: /data/
     environment:
       - DISPLAY=$DISPLAY
       - USER_HOME=/DeepLabCut

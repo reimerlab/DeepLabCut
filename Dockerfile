@@ -105,5 +105,11 @@ RUN pip install -e .
 
 WORKDIR /data
 
+# for datajoint ERD to work properly
+RUN sudo apt-get install -y graphviz-dev graphviz
+RUN pip install graphviz
+
+WORKDIR /data
+
 CMD ["/bin/bash"]
 

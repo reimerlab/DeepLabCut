@@ -33,8 +33,7 @@ services:
         #        - /home/pipeline_data/:/mnt/data/
         #      - $HOME/Documents/pipeline/:/data/pipeline/
         #      - .:/data/DeepLabCut
-      - /home/donnie/Documents/Repos/DeepLabCut:/work/
-      - /home/donnie/Documents/Repos/DLC_tool_DK:/work/
+      - /home/donnie/Documents/Repos/DeepLabCut:/data/
       - /etc/localtime:/etc/localtime:ro
       - /tmp/.X11-unix:/tmp/.X11-unix
     env_file: .env

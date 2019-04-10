@@ -1,5 +1,5 @@
 FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
-MAINTAINER Satoshi Murashige
+MAINTAINER Donnie Kim
 
 RUN apt-get -y update --fix-missing && apt-get -y upgrade
 RUN apt-get install -y sudo wget bzip2 git vim cmake xserver-xorg-dev libgl1-mesa-dev unzip && \
@@ -31,12 +31,9 @@ RUN echo 'export PATH=$HOME/anaconda3/bin:$PATH' > /etc/profile.d/anaconda.sh &&
 ENV PATH $HOME/anaconda3/bin:$PATH
 ENV LD_LIBRARY_PATH /usr/local/cuda-9.0/lib64:/usr/local/cuda-9.0/extras/CUPTI/lib64:$LD_LIBRARY_PATH
 
-RUN chown -R ${user_name}:${group_name} $HOME/anaconda3
+WORKDIR /data
 
 ##### Install Deeplabcut and its dependencies #####
-
-USER ${user_name}
-WORKDIR /work
 
 # Install DeepLabCut
 RUN conda install -y tensorflow==1.8 tensorflow-gpu==1.8
@@ -72,26 +69,41 @@ RUN sudo apt-get update
 RUN sudo apt-get install -y ffmpeg
 
 # add ownership
-RUN sudo chown -R ${user_name}:${group_name} /work
+RUN sudo chown -R ${user_name}:${group_name} /data
 
 # Install ImageMagick
 RUN sudo apt-get update -y
 RUN sudo apt-get install -y curl tar file xz-utils build-essential
 RUN wget https://imagemagick.org/download/ImageMagick.tar.gz
 
-WORKDIR /work/ImageMagick
-RUN sudo chown -R ${user_name}:${group_name} /work/ImageMagick
+WORKDIR /data/ImageMagick
+RUN sudo chown -R ${user_name}:${group_name} /data/ImageMagick
 
-WORKDIR /work
+WORKDIR /data
 
 RUN tar -xzf ImageMagick.tar.gz -C ImageMagick --strip-components 1
-WORKDIR /work/ImageMagick
+WORKDIR /data/ImageMagick
 
 RUN ./configure --prefix /usr/local
 RUN make
 RUN sudo make install
 RUN sudo ldconfig /usr/local/lib
 
-WORKDIR /work
+WORKDIR /data
+
+# Install commons
+RUN git clone https://github.com/atlab/commons.git && \
+    pip install commons/python && \
+    rm -r commons
+
+# change here accordingly.
+COPY /pipeline /data/pipeline
+
+WORKDIR /data/pipeline/python
+
+RUN pip install -e . 
+
+WORKDIR /data
+
 CMD ["/bin/bash"]
 

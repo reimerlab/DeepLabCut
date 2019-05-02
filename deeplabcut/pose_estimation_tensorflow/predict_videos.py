@@ -141,7 +141,7 @@ def analyze_videos(config,videos,videotype='avi',shuffle=1,trainingsetindex=0,gp
     pdindex = pd.MultiIndex.from_product([[DLCscorer], dlc_cfg['all_joints_names'], ['x', 'y', 'likelihood']],names=['scorer', 'bodyparts', 'coords'])
 
     if gputouse is not None: #gpu selectinon
-            os.environ['CUDA_VISIBLE_DEVICES'] = str(gputouse)
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(gputouse)
     
     ##################################################
     # Datafolder

@@ -12,7 +12,9 @@ from numpy import array as arr
 from numpy import concatenate as cat
 
 import scipy.io as sio
-from scipy.misc import imread, imresize
+from imageio import imread
+from deeplabcut.utils.deprecatedfunctions import imresize
+# from scipy.misc import imread, imresize  ## Deprecated in scipy >= 1.2.1
 
 class Batch(Enum):
     inputs = 0

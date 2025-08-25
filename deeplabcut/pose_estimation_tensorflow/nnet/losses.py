@@ -7,7 +7,9 @@ import tensorflow as tf
 from tensorflow.python.ops import math_ops
 from tensorflow.python.framework import ops
 
-import tensorflow.contrib.losses as tf_losses
+tf_losses = tf.keras.losses
+
+# import tensorflow.contrib.losses as tf_losses  ## tensorflow.contrib was removed in tensorflow >= 2.0
 
 
 def huber_loss(labels, predictions, weight=1.0, k=1.0, scope=None):

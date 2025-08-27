@@ -10,9 +10,15 @@ import numpy as np
 import tensorflow as tf
 from deeplabcut.pose_estimation_tensorflow.nnet.net_factory import pose_net
 
+from packaging import version
+if version.parse(tf.__version__) >= version.parse("2.0"):
+    from tensorflow.compat.v1 import reset_default_graph, placeholder
+else:
+    from tensorflow import reset_default_graph, placeholder
+
 def setup_pose_prediction(cfg):
-    tf.reset_default_graph()
-    inputs = tf.placeholder(tf.float32, shape=[cfg.batch_size   , None, None, 3])
+    reset_default_graph()
+    inputs = placeholder(tf.float32, shape=[cfg.batch_size   , None, None, 3])
     net_heads = pose_net(cfg).test(inputs)
     outputs = [net_heads['part_prob']]
     if cfg.location_refinement:

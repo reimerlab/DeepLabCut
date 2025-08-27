@@ -23,6 +23,13 @@ import argparse
 from pathlib import Path
 from tqdm import tqdm
 import tensorflow as tf
+
+from packaging import version
+if version.parse(tf.__version__) >= version.parse("2.0"):
+    from tensorflow.compat.v1 import reset_default_graph
+else:
+    from tensorflow import reset_default_graph
+
 from deeplabcut.utils import auxiliaryfunctions
 import cv2
 from skimage.util import img_as_ubyte
@@ -94,7 +101,7 @@ def analyze_videos(config,videos,videotype='avi',shuffle=1,trainingsetindex=0,gp
     if 'TF_CUDNN_USE_AUTOTUNE' in os.environ:
         del os.environ['TF_CUDNN_USE_AUTOTUNE'] #was potentially set during training
     
-    tf.reset_default_graph()
+    reset_default_graph()
     start_path=os.getcwd() #record cwd to return to this directory in the end
     
     cfg = auxiliaryfunctions.read_config(config)
@@ -443,7 +450,7 @@ def analyze_time_lapse_frames(config,directory,frametype='.png',shuffle=1,traini
     if 'TF_CUDNN_USE_AUTOTUNE' in os.environ:
         del os.environ['TF_CUDNN_USE_AUTOTUNE'] #was potentially set during training
     
-    tf.reset_default_graph()
+    reset_default_graph()
     start_path=os.getcwd() #record cwd to return to this directory in the end
     
     cfg = auxiliaryfunctions.read_config(config)

@@ -37,7 +37,8 @@ import matplotlib.pyplot as plt
 from deeplabcut.utils import auxiliaryfunctions
 from deeplabcut.pose_estimation_tensorflow.config import load_config
 from skimage.util import img_as_ubyte
-from skimage.draw import circle_perimeter, circle
+from skimage.draw import circle_perimeter
+from skimage.draw import ellipse as circle   # Generalized circle and allows for usage on newer and older skimage versions
 from deeplabcut.utils.video_processor import VideoProcessorCV as vp # used to CreateVideo
 
 

@@ -8,7 +8,12 @@ import threading
 import argparse
 from pathlib import Path
 import tensorflow as tf
-import tensorflow.contrib.slim as slim
+
+from packaging import version
+if version.parse(tf.__version__) >= version.parse("2.0"):
+    import tf_slim as slim
+else:
+    import tensorflow.contrib.slim as slim
 
 from deeplabcut.pose_estimation_tensorflow.config import load_config
 from deeplabcut.pose_estimation_tensorflow.dataset.factory import create as create_dataset

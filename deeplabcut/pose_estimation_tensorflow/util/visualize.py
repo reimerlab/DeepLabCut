@@ -5,7 +5,14 @@ https://github.com/eldar/pose-tensorflow
 
 import math, os
 import numpy as np
-from scipy.misc import imresize
+import scipy
+from packaging import version
+
+if version.parse(scipy.__version__) >= version.parse("1.3.0"):
+    from deeplabcut.utils.deprecatedfunctions import imresize
+else:
+    from scipy.misc import imresize
+    
 import matplotlib
 import platform
 if os.environ.get('DLClight', default=False) == 'True':
